@@ -1,0 +1,616 @@
+1. 在TP3.1.2, session()不能修改保存到Session中的数组的元素，只能对数组整体赋值进行修改：
+      session('abc',array('a'=>'A','b'=>'B','c'=>'C'));
+		session('abc.b','M');
+		echo session('abc.b'); //M
+		var_dump($_SESSION);
+		/*
+		 *["abc"]=> array(3) { ["a"]=> string(1) "A" ["b"]=> string(1) "B" ["c"]=> string(1) "C" }
+		 * ["abc.b"]=> string(1) "M" }
+		 *
+		 */
+  2.在模板中使用session()来获取数据 {:session('name')}, 该形式不能用于<switch>标签进行判断，
+       可使用<if condition="session('user.user_nickname') eq ''>"来实现，不能加{:}标示
+      或者直接使用  {:session('user.userinfo_occupation')?session('user.userinfo_occupation'):'暂未填写'}
+
+3.（1） order() ： 当使用继承 ViewModel 类的 模型对象时，该方法参数两边不能带有空格，否则，会忽略列名后的DESC,而采用默认的升序排列
+		在ViewModel类中的checkOrder()方法，会以空格进行分解为$field 和$sort , 
+		若以空格开头，则$feild ==' ', $sort ==列名， 因此造成DESC 被忽略
+       	若使用M()或Model()的模型对象，则不会有该问题
+  （2）where() : 当使用继承ViewModel 类的模型对象时，若字段名以空格开头或结尾，会将生成一个新的对该字段的判断条件：
+
+		如 array('user_id '=>10) , 生成的SQL语句为： where user_id =10 and userid=0
+	对于M()或Model()的模型对象，同样会出现该问题
+ 		原因： 在执行SQL语句前，会对where()方法获取的条件进行解析，和拼接为WHERE 子句：
+			Model.class.php _parseOptions（）方法（532行）中：
+				会对where 指定的数组进行解析，其中， $key = trim($key);
+				此时的 $key 为原字段名，在调用_parseType(), 传入$key, 对where数组中的该键值进行类型判断和转化，并将转化后的值赋值到$key 键名
+				因此 当前的where数组中就并存了两个 当前字段对应的值，而在后续处理时，造成两个条件判断
+				
+
+4.php.ini 文件位置： 在phpinfo页面中查看：Loaded Configuration File ，可以找到该文件的位置
+	使用第三方登录时，跳转页面显示：
+	可能是服务器无法请求https协议。。。。
+	
+	需开启open_ssl : 
+5.Apache 重新机制：
+	  Apache 的 RewriteRule 中 同一个条件下的的正则规则是不能存在一条包含另一条的情况，必须每个规则明确，否则就会出现死循环或者正则递归过大的情况导致500错误
+	Request exceeded the limit of 10 internal redirects due to probable configuration error. 
+	Use ‘LimitInternalRecursion’ to increase the limit if necessary. Use ‘LogLevel debug’ to get a backtrace.	
+	例如：
+	RewriteCond %{REQUEST_FILENAME} !-d
+  	RewriteCond %{REQUEST_FILENAME} !-f
+ 	 RewriteRule ^m/(.*)$ m.php/$1 [L]
+  	RewriteRule ^(.*)$ index.php/$1 [L]
+   需该写为：
+	RewriteCond %{REQUEST_URI} ^/m/
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^m/(.*)$ m.php/$1 [L]
+
+  RewriteCond %{REQUEST_URI} !^/m/
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(.*)$ index.php/$1 [L]
+
+6.正则表达式：//负向前瞻(?!); 正向前瞻(?=)
+	$re='/<(?=img)[^>]*>/i';
+	function trans($match){ return htmlspecialchars($match[0]);}
+	echo preg_replace_callback($re,trans,$str);
+
+7.tp3.1 中delete()方法参数若传入任何一个不为空的数组，在对该数组进行解析处理时，若该数组不包含where 或table等键名
+	//则会在处理时，追加默认的table, 且where为空，且在对该参数处理后不会对where 是否存在进行判断，而生成SQL语句
+	//进行执行，所以会删除所有数据
+	//因此delete()参数中必须带有where键名值
+	//echo M('user')->delete($user_data);
+8. 返回true 与js 中的true:
+ 	直接在模板上分配时：
+		值为'true' 字符串，且在模板中不能使用“”引住，此时分配的值 等于js 中的true
+
+9.sql: union 和 order by 一起的使用：
+	对关联查询的结果整体排序：在UNION外面包一层select，order by要放在最外层
+		
+		SELECT * FROM (SELECT xxxx UNION ALL SELECT xxxx) ORDER BY yyyy 
+
+	而不能直接使用： SELECT xxxx UNION ALL SELECT xxxx ORDER BY yyyy
+	
+	在ThinkPHP 中， 不能同时使用 union() 和order()方法，否则将会解析为以上的形式，
+		故必须将调用union() 方法 生成一个子语句，然后再以该语句作为表名，来执行 order()方法
+
+10.支付宝 支付完成后 通知地址中，不能使用SESSION 中的数据，SESSION 中的数据会临时丢失；
+	 对于需要的参数，则可以保存到订单参数中，通过对返回的订单的数据访问，来处理参数
+11.ThinkPHP 错误显示： headers already sent by....
+  可能原因：
+ （1）文件编码问题： 若文件为 utf-8 BOM ,则会在文件开头加入 U+FEFF
+	BOM（byte order mark）是为 UTF-16 和 UTF-32 准备的，用于标记字节序（byte order）：有bom格式在开头会多出3个字节 EF BB BF ,主要用于识别编码。
+	bom应该是windows特有的，在制作网页时会产生各种意想不到的问题，例如多输出了一个空行，影响PHP的session或者cookies功能（出现 header already sent错误），
+	甚至可能引起页面的乱码（那3个字节影响了浏览器对页面编码的处理），因此总是推荐使用无bom编码
+  (2)在文件的第一个<?php之前不得有任何内容，包括空白、空行
+  (3)在header('Location:news_list.php?message=$message');语句之前不得有任何的echo或者其它输出内容的语句
+
+12.php include 文件名： 当该文件使用了return 语句来返回数据时， 则可以直接在引用文件中使用变量来获取
+
+	例：
+	 	a.php
+		return array('abc'=>123,'ert'=>'.pph');
+
+		b.php
+		$a = include 'a.php';
+	在ThinkPHP配置文件中，可以直接使用array_merge(）来引用自定义的其他配置文件，但，当需引用嵌套的多个引用文件时，则来接受的使用的变量名不能重复，否则会被覆盖：
+	如
+		conf1.php
+		return array('conf1'=>'1111');
+		conf2.php
+		$conf =array('conf2'=>'222');
+		return array_merge(include 'conf1.php',$conf);
+		conf3.php
+		$conf =array('conf3'=>'3333');
+		return array_merge(include 'conf2.php',$conf);
+ 此时，在conf3.php 中定义的$conf 将不会有作用
+13.php array_slice 保留键值:
+	array_slice(array1,start,length,true); 第三个参数为true表示保留键值，默认为false
+14.sql语句 ，判断多个字段值，只获取最大的字段值
+                $sub_sql='(SELECT view_id ,max(CASE WHEN view_addtime<viewcomment_ptime THEN viewcomment_ptime ELSE view_addtime END) as order_time from jwr_view left join  jwr_viewcomment on view_id=viewcomment_viewid GROUP BY view_id ) as sub ';
+	其中，当某个字段为NULL时，则比较的结果为NULL,故将始终返回后者，因此，应将某个字段为NULL时，返回另一个字段作为后者
+ 
+ 15. 分组过滤：过滤条件不为聚合函数时
+	having 子句进行过滤时，只能使用聚合函数
+	where 子句则是在group 子句之前调用
+	故可以同时使用 where 和 having 子句，在where 子句中指定条件，在having子句中使用count()来进行判断过滤
+	SELECT * FROM `jwr_surveytext` WHERE `surveytext_type` IN ( 1, 2 ) AND `surveytext_text` = '' GROUP BY `surveytext_survey_id`
+			HAVING count( * ) =2
+
+16.CentOS 配置samba:
+	yum install samba
+   (1)对samba进行配置vi /etc/samba/smb.conf
+	a).修改[global](全局配置参数)
+	workgroup =WORKGROUP
+	server string = Samba Server
+	security = user
+	#passdb backend = tdbsam       #这一行前面用“#”注释掉，也就是  #  passdb backend = tdbsam
+	b.).
+	[share]
+	comment=CentOS
+	path = /home/sofar/share                                         # path 路径可以设置为其他，但是，该目录要存在，
+	browseable = yes
+	writable = yes
+	browseable = yes
+	available = yes
+	create mask = 0664
+	directory mask = 0775
+设置好后保存退出,重新启动samba服务。 #  service smb restart
+ 
+(2)添加samba 登陆用户帐户和密码
+	a.). smbpasswd -a  sofar                                       #添加smb用户 ，并且增加密码 ，添加成功会有提示。该用户一定要系统上存在
+	b.). smbpasswd -e sofar                                       #查看用户sofar 是否存在，也就是没有添加成功。
+	c.).testparm                                                        #简单测试配置是否正确
+(3) #修改share权限: chmod 0755 share                    
+ (4)测试连通性：
+	smbclient -L localhost -U sofar@zss
+	显示：
+		Domain=[BIGCLOUD] OS=[Unix] Server=[Samba 4.1.1]
+  
+      Sharename      Type      Comment
+      ---------      ----      -------
+      SHAREDOCS      Disk
+      RDDOCS          Disk
+      IPC$            IPC      IPC Service (Samba Server)
+Domain=[BIGCLOUD] OS=[Unix] Server=[Samba 4.1.1]
+  
+      Server              Comment
+      ---------            -------
+  
+      Workgroup            Master
+      ---------            -------
+ 此时进行连接，若提示 无权限访问，或在windows 无法找到该服务，则需关闭CentOS 的seliunx 和iptables
+	centos有一个selinux模块，该模块增加了centos安全访问控制性能，对samba及ftp等一些配置均有影响。可以把selinux取消，这样，通过windows就可以访问linux的共享了。
+	通过   vi /etc/sysconfig/selinux
+	把 SELINUX=enforcing   修改为SELINUX= disable 退出保存，并且重启。
+	iptables -F #清空规则
+
+17.centOS 安装Mariadb:
+	yum install  mariadb mariadb-server mariadb-devel
+	安装完成MariaDB，首先启动MariaDB
+
+		systemctl start mariadb 或 service mariadb start
+
+	安装好以后的root密码是空
+	配置：
+	 （1）字符集：
+		文件/etc/my.cnf
+
+		vi /etc/my.cnf
+		在[mysqld]标签下添加
+
+		init_connect='SET collation_connection = utf8_unicode_ci' 
+		init_connect='SET NAMES utf8' 
+		character-set-server=utf8 
+		collation-server=utf8_unicode_ci 
+		skip-character-set-client-handshake
+
+		文件/etc/my.cnf.d/client.cnf
+
+		vi /etc/my.cnf.d/client.cnf
+		在[client]中添加
+
+		default-character-set=utf8
+
+		文件/etc/my.cnf.d/mysql-clients.cnf
+
+		vi /etc/my.cnf.d/mysql-clients.cnf
+		在[mysql]中添加
+
+		default-character-set=utf8
+ 		全部配置完成，重启mariadb
+
+		systemctl restart mariadb
+		之后进入MariaDB查看字符集
+
+		mysql> show variables like "%character%";show variables like "%collation%";
+	（2）开机启动：
+		
+		设置开机启动
+
+		systemctl enable mariadb
+	（3）允许远程访问：
+		mysql> 
+		 a. 进入MySQL,创建一个新用户xuys:
+			格式：  grant 权限 on 数据库名.表名 用户@登录主机 identified by "用户密码";
+			
+			grant select,update,insert, delete on *.* to sofar@192.168.56.1 identified by "sofar";
+		  查看结果,执行:
+   		 use mysql;
+   		 select host,user,password from user;
+   +-----------------------+-------+-------------------------------------------+
+| host                  | user  | password                                  |
++-----------------------+-------+-------------------------------------------+
+| localhost             | root  |                                           |
+| localhost.localdomain | root  |                                           |
+| 127.0.0.1             | root  |                                           |
+| ::1                   | root  |                                           |
+| localhost             |       |                                           |
+| localhost.localdomain |       |                                           |
+| 192.168.56.1          | sofar | *92B5456DFC11EE9EBDAA5E5FA695CA5CCF1D2653 |
+| 192.168.56.101        | zss   | *A443E270B36217490C586FC0251FE08C1A310787 |
++-----------------------+-------+-------------------------------------------+
+
+    	可以看到在user表中已有刚才创建的sofar用户,host字段表示登录的主机,其值可以用IP,也可用主机名,
+	而root用户只能在localhost 本地登录
+		将host字段的值改为%就表示在任何客户端机器上能以sofar用户登录到MySQL服务器,
+		
+    		update user set host = '%' where user = 'sofar';
+
+	 b.
+    	mysqladmin -u root -p pwd reload
+   	mysqladmin -u root -p pwd shutdown
+
+  	  c.
+    	mysqld_safe --user=root &
+   
+    记住: 对授权表的任何修改都需要重新reload,即执行第3步.
+
+    如果经过以上3个步骤还是无法从客户端连接,请执行以下操作,在MySQL数据库的db表中插入一条记录:
+    use mysql;
+    insert into db values('192.168.88.234','%','sofar','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y');
+    update db set host = '%' where user = 'sofar';
+   
+    重复执行上面的第2,3步.
+
+或
+	 grant all on yourdb.* to yourUsername@yourHost identified by "yourPassword";
+	flush privileges;     //使权限立刻生效
+
+18. CentOS 编译安装php7:
+	下载 php-7.0.13.tar.gz
+	解压进入
+		
+	./configure --prefix=/usr/local/php7 --enable-fpm --enable-mbstring --with-curl  --with-mysqli=/usr/bin/mysql_config --with-pdo
+
+	可能出现的错误：
+		a. configure: error: xml2-config not found. Please check your libxml2 installation.
+	
+			yum -y install libxml2-devel
+		b.configure: error: Please reinstall the libcurl distribution -
+    		easy.h should be in /include/curl/
+			yum install curl curl-devel
+		c.  checking for mysql_config... not found
+       		 configure: error: Unable to find your mysql installation
+			报错是因为mysql安装 pdo 插件时，按指定的路径找不到。直接为空，让它自己搜索找去
+	make && make install
+19. CentOS 安装Nignx:
+	下载 nginx-1.10.2.tar.gz
+	解压，进入
+	
+	./configure --sbin-path=/usr/local/nginx --conf-path=/usr/local/nginx/nginx.conf 
+				--pid-path=/usr/local/nginx/nginx.pid 
+				--with-http_ssl_module
+	make && make install
+	启动：
+	/usr/local/nginx 
+20.配置 php-fpm:
+	在 /usr/local/php7/etc/php-fpm.d/
+	复制
+	cp www.conf.default www.conf
+	修改 www.conf
+		user=www
+		group=www
+	在该文件中 可以找到：
+		listen=/var/run/php-fpm/php-fpm.sock
+	需在/var/run/ 手动创建目录和文件，
+		并指定 该文件的用户和组为www
+	否则会在启动时，报错
+
+	在/usr/local/php7/etc/中
+	复制
+	cp  php-fpm.conf.default php-fpm.conf
+	启动 php-fpm:
+		/usr/local/php7/sbin/下 php-fpm
+		可以在/usr/bin创建链接
+		ln -s  ../local/php7/sbin/php-fpm php-fpm
+	启动：php-fpm
+	 
+
+	php 5.3.3 以后的php-fpm 不再支持 php-fpm 以前具有的 /usr/local/php/sbin/php-fpm (start|stop|reload)等命令，需要使用信号控制：
+
+	master进程可以理解以下信号
+
+	INT, TERM 立刻终止
+	QUIT 平滑终止
+	USR1 重新打开日志文件
+	USR2 平滑重载所有worker进程并重新载入配置和二进制模块 
+	重启php-fpm:
+
+	kill -USR2 pid
+
+21.配置php访问：
+		在 /usr/loca/nginx.conf :	
+		user www
+		...
+	   location ~ \.php$ {
+            root           /home/www/html;
+          #  fastcgi_pass   127.0.0.1:9000;
+             fastcgi_pass unix:/var/run/php-fpm/php-fpm.sock;
+            fastcgi_index  index.php;
+            fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+            include        fastcgi_params;
+        }
+	说明:
+	(1).root 指定的网站根路径www用户必须有可以访问的权限，否则会提示 文件不存在
+		例：
+		root /home/sofar/html;
+		由于 /home/sofar 目录的权限为 drwx------
+		故若指定该目录，则无法访问到文件
+	(2).若/var/run/php-fpm/php-fpm.sock 没有权限访问时，会报错：
+		Sorry, the page you are looking for is currently unavailable. Please try again later
+	即使之前设置了该文件的权限时，可能需重新设置
+	(3).  
+		默认下：fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+		需改为：
+			fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+
+   (4).配置Nginx 重写机制 和 Thinkphp pathinfo 规则
+		server{
+
+        listen       80;
+   
+		     server_name  www.jwr.net;
+	
+			location / {
+
+		
+          
+			  root   /home/www/tuanda_web/Pc;
+           
+			 index index.php  index.html index.htm;
+	
+				#if 和 ( 之间必须有空格		
+	
+				if (!-e $request_filename){
+			
+					rewrite ^(.*)$ /index.php?s=$1 ;
+	#?s=$1 形式来实现Thinkphp的重写模式，否则只支持pathinfo模式
+				#		break;
+		 #此处不能加 break
+					}
+		
+				}
+	
+			location ~ \.php {
+			
+        
+				    root   /home/www/tuanda_web/Pc;
+	    
+					 fastcgi_pass unix:/var/run/php-fpm/php-fpm.sock;
+          
+					  index index.php  index.html index.htm;
+            
+						fastcgi_index  index.php;
+	   
+						 set $path_info "";
+	#定义$path_info变量，用于保存 pathinfo信息  
+						  set $real_script_name $fastcgi_script_name;
+	 #保存入口脚本文件路径
+							#pathinfo模式： index.php/Model/Conctroller  
+							 if ($fastcgi_script_name ~ "^(.+?\.php)(/.+)$"){
+			
+									set $real_script_name $1;
+ #保存入口脚本文件名			
+									set $path_info $2;
+	  #pathinfo信息
+								  }
+		
+            				#配置fastcgi 的参数
+							fastcgi_param  SCRIPT_FILENAME  $document_root$real_script_name;
+	  
+							  fastcgi_param PATH_INFO $path_info;
+	  
+							 fastcgi_param SCRIPT_NAME $real_script_name;		
+       
+						     include        fastcgi_params;
+	
+	
+					}
+	
+		}
+22. php 中 mixed preg_replace_callback ( mixed pattern, callback callback, mixed subject [, int limit] )
+	其中 callback 伪类型：
+		
+		Callback 函数不仅可以是一个简单的函数，它还可以是一个对象的方法，包括静态类的方法。
+
+		一个 PHP 函数用函数名字符串来传递：可以传递任何内置的或者用户自定义的函数，除了 array()，echo()，empty()，eval()，exit()，isset()，list()，print() 和 unset()。
+
+			preg_replace_callback(
+            			  "|(/d{2}//d{2}/)(/d{4})|",
+            			  "next_year",
+            			  $text);
+		一个对象的方法以数组的形式来传递：数组的下标 0 指明对象名，下标 1 指明方法名。
+		preg_replace_callback(”|(d{2}/d{2}/)(d{4})|”,array( $this, ‘next_year’), $text);
+
+		对于没有实例化为对象的静态类，要传递其方法，将数组 0 下标指明的对象名换成该类的名称即可。
+		$content=preg_replace_callback($pattern, array('ToolsAction','filterReview'), $content);
+	
+
+23. curl 提交POST 并设置 Content-Type:
+
+		$url='http://we.juwairen.net/Demo/hs_response';
+
+		$ch = curl_init();
+		curl_setopt($ch, CURLOPT_URL, $url);
+		curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 60);
+		curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+		curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+
+		$auth='Authorization:Basic '.base64_encode($key.':'.$secret);
+		$content_type='Content-Type:application/x-www-form-urlencoded;charset=UTF-8';
+		//设置Header信息
+		url_setopt($ch, CURLOPT_HTTPHEADER, array($auth,$content_type));
+		// post数据
+		curl_setopt($ch, CURLOPT_POST, 1);
+
+		$data='grant_type=client_credentials';
+		curl_setopt($ch,CURLOPT_POSTFIELDS,$data);
+		$res =curl_exec($ch);
+		curl_close($ch);
+
+	说明：
+		"传递一个数组到CURLOPT_POSTFIELDS，CURL会把数据编码成 multipart/form-data，而传递一个URL-encoded字符串时，数据会被编码成 application/x-www-form-urlencoded"
+		即：
+		Content-Type的类型取决于POST传递的$data的数据类型。
+
+		（1）如果$data是字符串，则Content-Type是application/x-www-form-urlencoded。
+			HTML Form URL Encoded: application/x-www-form-urlencoded
+			Form item: "grant_type" = "client_credentials"
+			Key: grant_type
+			Value: client_credentials
+			即 在接受端获取的数据为 $_POST["grant_type"]="client_credentials";
+		
+
+		(2)如果$data是k=>v的数组，则Content-Type是multipart/form-data, 
+			Content-Type: multipart/form-data; boundary=----------------------------749c186646f5\r\n
+	
+			则接受的数据为
+				 $_POST["grant_type"]="client_credentials";
+		(3)若 设置Content-Type是application/x-www-form-urlencoded， 但$data未数组，则在接受端接受的数据为
+			
+			$_POST["------------------------------1956fa01a9d7\r\nContent-Disposition:_form-data;_name"]="\"grant_type\"\r\n\r\niuc\r\n------------------------------1956fa01a9d7--\r\n";
+
+24.获取请求头信息 和获取响应头信息：
+	（1）请求头信息
+	curl_setopt($ch1,CURLINFO_HEADER_OUT,true);
+	$output = curl_exec($ch1);
+
+	//在执行 curl_exec() 后获取请求头信息
+	$h = curl_getinfo($ch1,CURLINFO_HEADER_OUT);
+
+	（2）响应头信息
+	curl_setopt($ch1, CURLOPT_HEADER, true);
+	curl_setopt($ch, CURLOPT_NOBODY,true)
+	$response  = curl_exec($ch1);
+25.CentOS 添加php openSSL 支持：
+	进入到 php 源代码路径下的 ext/openssl
+		cd ext/openssl
+	执行 phpize 
+		执行后，发现错误 无法找到config.m4 ，config0.m4就是config.m4。直接重命名
+			mv config0.m4 config.m4
+		再次执行，提示
+			Cannot find autoconf. Please check your autoconf installation and the
+				$PHP_AUTOCONF environment variable. Then, rerun this script.
+	       需安装 m4 、autoconf
+			yum install m4
+ 			yum install autoconf
+	./configure --with-openssl --with-php-config=/usr/local/php7/bin/php-config
+	  若提示：
+		configure: error: Cannot find OpenSSL’s <evp.h>
+	      直接执行：yum install openssl openssl-devel
+	make && make install
+安装完成后，会返回一个.so文件（openssl.so）的目录。
+	将该文件路径添加到php.ini 
+	extension=/usr/local/php/lib/php/no-debug/20170407/openssl.so
+26 mysql 去除字段前后 \t \n ,如 \tabc\n 
+	 保存在数据空中 不会显示为\t \n  而是以非打印字符存在，
+	UPDATE `jwr_company_question` SET `question_username`=trim('\t' from
+                                                           trim('\n' from `question_username`)) WHERE 1	
+ 若在php 程序中使用'\tabc\n' 来添加数据时，则\t \n 将不会转义，即保存到数据库中的就是\tabc\n
+	因此 在替换时，则需要将\t \n 进行再次转义 \\t \\n
+	若使用 "\tabc\n", 则将保存到数据库中的是空白字符，则替换时 \t \n 不需要转义	
+
+27.php类属性在定义 直接赋值时， 不能使用不能用函数，表达式之类的
+
+	class  MyClass1 {
+		$a='aaa'.'bbb'; //报错
+	
+		$b='aaaaabbb'; //正常
+	}
+
+28. 查询 用户 每天 的记录数，并删除每天中的重复的记录
+
+	$sql="SELECT `exp_user_id` , DATE_FORMAT( FROM_UNIXTIME( `exp_time` ) , '%d' ) AS date, count( * ) as count
+			FROM `jwr_user_exp_record`
+			WHERE `exp_type` =1
+			GROUP BY `exp_user_id` , DATE_FORMAT( FROM_UNIXTIME( `exp_time` ) , '%d' )
+			HAVING count( * ) >1 order by `exp_user_id`" ;
+
+		$user_exp_record =M('user_exp_record');
+
+		$data=$user_exp_record->query($sql);
+	其中：
+		FROM_UNIXTIME( `exp_time` ) 函数将时间戳转为 日期格式  默认 YYYY-mm-dd HH:MM::SS
+			可以通过 第二个参数指定： %Y%m%d%H%i%s
+		DATE_FORMAT(), 将指定的日期时间 字符串描述，格式化输出， 可通过第二个参数指定，
+		
+		通过 对用户ID 和将时间戳转为的 日期字段 作为 分组
+ 
+	//对获取的 用户 和日期 ，判断获取 用户同一天的 的重复的 ID，
+		$res=array();
+
+		foreach($data as $key=>$val){
+			/*
+ 			 * 当在遍历循环时，需将某个字段值作 区分
+			 * 除了 使用判断条件来实现，还可以 将该字段值本身作为区分标识，可省略判断语句。
+			 *
+			 * 当可以在第一个匹配 该区分，来处理时，则直接对当前遍历的元素进行处理，
+			 * 可以省略 对开始和结束 元素的处理判断；
+			 * 若需在 最后一个匹配该区分，来处理时，则需要使用变量保存上个遍历的元素
+			 * 与当前遍历元素作比较，来判断上个元素 为当前区分的最后一个匹配
+			 * 并作处理，在处理结束后，保存当前元素到 变量，
+			 * 这样在下个遍历中 该变量将作为新的区分的第一个匹配
+			 * 需 对开始和结束 元素进行判断处理
+			 */
+			$cur_date=$val['date'];
+			$cur_user=$val['exp_user_id'];
+			$count=$val['count'];
+
+					$where['exp_user_id']=$cur_user;
+					$where['exp_type']=1;
+					$where['_string']="DATE_FORMAT( FROM_UNIXTIME( `exp_time` ) , '%d' )=".$cur_date;
+					//去除 第一条记录
+					$ids =$user_exp_record->where($where)->limit(1,$count)->getField('exp_id',true);
+
+					if($ids){
+						if(!isset($res[$cur_user])){
+							$res[$cur_user]['exp_id'] =$ids;
+							$res[$cur_user]['count']=$count-1;
+						}else{
+							$res[$cur_user]['exp_id'] =array_merge($res[$cur_user]['exp_id'],$ids);
+							$res[$cur_user]['count']+=$count-1;
+						}
+
+					}
+
+
+		}
+
+		//删除
+		if($res){
+			foreach ($res as $id=>$v){
+				
+			$user_exp_record->where(array('exp_id'=>array('in',$v['exp_id'])))->delete();
+			}
+		}
+29. 数组遍历， 使用引用变量， 在遍历结束后 该引用变量仍为 最后元素的别名， 因此若再修改该变量值时，仍会影响到原数组的最后一个元素值：
+
+foreach ($data as &$n) {
+    $n *= $n;
+}
+print_r($data); //  Array ( [0] => 0 [1] => 1 [2] => 4 [3] => 9 )
+//使用引用变量再次遍历，在每次向 $n 赋值时，都会修改 $data 数组中的最后一个元素
+foreach ($data as $n) {
+    echo "n = $n\n";
+}
+/*
+n = 0 n = 1 n = 4 n = 4 
+*/
+30.数组的键名 "123" 123 为同一个键名， 因此不能共存，且保存的键名为int 类型
+$trMap = array(
+        'baidu' => '百度',
+        'sougou' => '搜狗',
+        '360' => '360',
+        'google' => '谷歌',
+	//360=>'8473'
+    );  
+    foreach ($trMap as $key => $value) {
+		
+		var_dump($key); //int(360)
+		var_dump($value);
+        
+    }   

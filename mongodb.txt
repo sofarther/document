@@ -1,0 +1,109 @@
+1. $match:
+	db.articles.aggregate( [
+  { $match: { $or: [ { score: { $gt: 70, $lt: 90 } }, { views: { $gte: 1000 } } ] } },
+  { $group: { _id: null, count: { $sum: 1 } } }
+] );
+	输出：
+		{ "_id" : null, "count" : 5 }
+
+2.$sort $limit $skip 在管道中执行顺序：
+	（1）默认下会 按照指定的顺序执行：
+	即 以下会先截取10条数据，然后再跳过5条， 最后再对剩余的5条数据进行排序
+test>db.numbs.aggregate([{$limit:10},{$skip:5},{$sort:{num1:-1}}
+{ "_id" : 8, "name" : "SPzjcGLOt", "num1" : 95, "num2" : 9 }
+{ "_id" : 7, "name" : "exBe", "num1" : 93, "num2" : 4 }
+{ "_id" : 6, "name" : "YPTLomeFZEc", "num1" : 90, "num2" : 11 }
+{ "_id" : 10, "name" : "rSaUQpaoFZ", "num1" : 42, "num2" : 10 }
+{ "_id" : 9, "name" : "yQjbUJziuNI", "num1" : 15, "num2" : 11 }
+
+	（2）当 $limit 在 $skip 之后时，则会先执行$limit, 获取 $limit +$skip 条数据，
+		然后再执行 $skip 跳过指定条记录
+	test>db.numbs.aggregate([{$skip:5},{$limit:3},{$sort:{num1:-1}}])
+{ "_id" : 8, "name" : "SPzjcGLOt", "num1" : 95, "num2" : 9 }
+{ "_id" : 7, "name" : "exBe", "num1" : 93, "num2" : 4 }
+{ "_id" : 6, "name" : "YPTLomeFZEc", "num1" : 90, "num2" : 11 }
+
+		若将$limit 放在 $skip 之前：
+		test>db.numbs.aggregate([{$limit:3},{$skip:5},{$sort:{num1:-1}}])
+		则会先获取 3条数据， 再跳过 5条 ，故返回空
+
+3.$unwind :将数组拆分为 每个元素为文档：
+{ "_id" : 1, "name" : "sue", "age" : 19, "finished" : [ 17, 3 ] }
+
+test>db.users.aggregate([{$project:{name:1,age:1,finished:1}},{$unwind:"$finished"}])
+{ "_id" : 1, "name" : "sue", "age" : 19, "finished" : 17 }
+{ "_id" : 1, "name" : "sue", "age" : 19, "finished" : 3 }
+{ "_id" : 2, "name" : "bob", "age" : 42, "finished" : 11 }
+{ "_id" : 2, "name" : "bob", "age" : 42, "finished" : 25 }
+{ "_id" : 2, "name" : "bob", "age" : 42, "finished" : 22 }
+{ "_id" : 3, "name" : "ahn", "age" : 22, "finished" : 6 }
+{ "_id" : 4, "name" : "xi", "age" : 34, "finished" : 5 }
+{ "_id" : 4, "name" : "xi", "age" : 34, "finished" : 11 }	
+
+	可以对拆分后的文档进行匹配
+	test>db.authors.aggregate([
+			{$unwind:"$books"},
+			{$match:{books:{$regex:/^the/i}
+				}
+			}
+		])
+	输出：
+{ "_id" : "Homer", "books" : "The Odyssey" }
+{ "_id" : "Dante", "books" : "The Banquet" }
+4. $addFields添加新的返回字段:
+	可以添加多次，每次可以添加多个字段
+	当 添加的字段名 与已存在的字段名重复时，会覆盖原已存在的字段值 	
+	db.numbs.aggregate([
+		{$addFields:{
+			sum:{$add:["$num1","$num2"]	
+				},
+			sub:{$subtract:["$num1","$num2"]}
+			}
+		},
+		{$addFields:{
+			sub1:{$subtract:["$num2","$num1"]}
+			}
+		}])
+5.$out 将查询的结果 保存到指定的集合中
+	当指定的集合名已存在时，会覆盖原集合中的文档
+	test>db.numbs.aggregate([{$project:{
+			num1:1,num2:1,
+			sum:{$add:["$num1","$num2"]},
+			sub:{$subtract:["$num1","$num2"]}
+			}},
+			{$out:"calc"}
+		])
+	test>db.books.aggregate([{$group:{_id:"$author",books:{$push:"$title"}}},
+		{$out:"authors"}])
+
+6.mapReduce()
+	需 实现两个函数 Map 函数和 Reduce 函数 
+	db.books.mapReduce(
+		function(){ emit(this.author,this.copies);}, //map 函数
+		function(key,values) {return Array.sum(values);}, //reduce 函数
+		{out:"t"} // options
+	)
+	输出：
+{
+        "result" : "t", //储存结果的collection的名字,这是个临时集合，MapReduce的连接关闭后自动就被删除了
+        "timeMillis" : 624, //执行花费的时间，毫秒为单位
+        "counts" : {
+                "input" : 5, //满足条件被发送到map函数的文档个数
+                "emit" : 5, //在map函数中emit被调用的次数，也就是所有集合中的数据总量
+                "reduce" : 2,
+                "output" : 2  //结果集合中的文档个数
+        },
+        "ok" : 1
+}
+map 函数必须调用 emit(key, value), 遍历 collection 中所有的记录, 将 key 与 value 传递给 Reduce 函数进行处理
+	emit的第一个参数是key，就是分组的依据，
+	value，可以是要统计的数据
+
+reduce	函数会处理每一个分组，
+options 需指定 out 来指定保存结果的集合
+	query 指定筛选条件只有满足条件的文档才会调用map函数
+	sort 和limit
+执行后生成一个 t 集合：
+	test>db.t.find()
+{ "_id" : "Dante", "value" : 5 }
+{ "_id" : "Homer", "value" : 20 }
