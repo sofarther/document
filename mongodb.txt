@@ -98,12 +98,203 @@ test>db.users.aggregate([{$project:{name:1,age:1,finished:1}},{$unwind:"$finishe
 map 函数必须调用 emit(key, value), 遍历 collection 中所有的记录, 将 key 与 value 传递给 Reduce 函数进行处理
 	emit的第一个参数是key，就是分组的依据，
 	value，可以是要统计的数据
-
-reduce	函数会处理每一个分组，
+	this表示当前文档
+reduce	函数会处理每一个分组，返回 新结果中的文档的value 键名的值
 options 需指定 out 来指定保存结果的集合
 	query 指定筛选条件只有满足条件的文档才会调用map函数
 	sort 和limit
-执行后生成一个 t 集合：
-	test>db.t.find()
-{ "_id" : "Dante", "value" : 5 }
-{ "_id" : "Homer", "value" : 20 }
+		执行后生成一个 t 集合：
+			test>db.t.find()
+				{ "_id" : "Dante", "value" : 5 }
+				{ "_id" : "Homer", "value" : 20 }
+
+	
+	
+
+	finalize 接受reduce 函数返回的内容，并处理返回处理后的结果
+		test>db.books.mapReduce(
+			function(){var value={tit:this.title,cop:this.copies}; 
+					emit(this.author,value)
+				},
+			function(key,val){
+				var tl=[]; cp=[];
+			 	for(var i=0; i<val.length; i++){
+					tl[i]=val[i].tit; cp[i]=val[i].cop;
+				 }  
+				return {t:tl,c:cp};
+				},
+			{	out:"t1",
+			 	finalize:function(k,reduceVal){
+					return {tt:reduceVal.t,cc:Array.sum(reduceVal.c)};
+						}
+			})
+输出：
+{
+        "result" : "t1",
+        "timeMillis" : 156,
+        "counts" : {
+                "input" : 5,
+                "emit" : 5,
+                "reduce" : 2,
+                "output" : 2
+        },
+        "ok" : 1
+}
+查询结果
+test>db.t1.find()
+{ "_id" : "Dante", "value" : { "tt" : [ "The Banquet", "Divine Comedy", "Eclogues" ], "cc" : 5 } }
+{ "_id" : "Homer", "value" : { "tt" : [ "The Odyssey", "Iliad" ], "cc" : 20 } }
+
+	scope:{} 分配变量， 可在map reduce finalize 函数中使用
+		test>db.books.mapReduce(
+			function(){var value={tit:this.title,cop:this.copies}; 
+					emit(this.author,value)
+				},
+			function(key,val){
+				var tl=[]; cp=[];
+			 	for(var i=0; i<val.length; i++){
+					tl[i]=val[i].tit;
+					if(val[i].cop>5){
+						cp[i]=val[i].cop+p1;
+					}else{
+						cp[i]=val[i].cop+p2;
+					}
+					 
+				 }  
+				return {t:tl,c:cp};
+				},
+			{	out:"t1",
+			 	finalize:function(k,reduceVal){
+					return {tt:reduceVal.t,cc:Array.sum(reduceVal.c)};
+						},
+				scope:{p1:100,p2:300}
+			})
+
+reduce 函数必须能够处理map 中emit()  映射的键值，并且可以递归处理 reduce函数本身返回的结果，
+	即 第二个参数 不一定是map 中调用emit()映射的键值，也可能是reduce函数的返回值
+	因此 reduce 函数可能会多次调用，且调用的时机不一定是在map函数结束后执行
+		
+	test>db.records.mapReduce(
+			function(){
+					for(var k in this){emit(k,{count:1})}
+			},
+			function(key,values){
+					var total=0; 
+					for(var i=0; i<values.length; i++){
+						total+=values[i].count;
+					 } 
+				return {count:total};
+			 },
+			{out:"t2"})
+输出：
+{
+        "result" : "t2",
+        "timeMillis" : 201,
+        "counts" : {
+                "input" : 4,
+                "emit" : 14,
+                "reduce" : 5,
+                "output" : 7
+        },
+        "ok" : 1
+}
+test>db.t2.find()
+{ "_id" : "_id", "value" : { "count" : 4 } }
+{ "_id" : "a", "value" : { "count" : 2 } }
+{ "_id" : "b", "value" : { "count" : 2 } }
+{ "_id" : "c", "value" : { "count" : 2 } }
+{ "_id" : "d", "value" : { "count" : 2 } }
+{ "_id" : "e", "value" : { "count" : 1 } }
+{ "_id" : "f", "value" : { "count" : 1 } }
+说明：
+	例如 集合中的文档：
+		{_id:3,e:27,f:24,a:62}
+	在map函数中遍历 当前文档的所有键名，调用 emit()，对每个键名指定映射的键值，
+	产生一些键名和键值
+	在对多个文档进行映射后，产生多个类似的{键名:{count:1}} 文档，然后按照键名进行分组 
+	每个键名对应的键值为 多个 {count:1}的 数组，
+
+	然后对每个键名和键值，调用reduce 函数
+	对数组的元素的count 进行累加，并将累加后的结果返回，
+	继续执行，直到键值的数组中只有一个元素，并将该元素返回 即为该键名对应的键值的最后结果	
+
+7.distinct("") 去重指定的键名：
+		test>db.records.distinct("b")
+		输出： [ 54, 24 ]	
+
+8.db.posts.insertMany([
+{title:"java sun",author:"jk","day":"2012-12-14","tags":["java","spring","nosql"]},
+{title:"ssh2的整合",author:"cj","day":"2012-5-10","tags":["struts 2","hibernate","spring"]},
+{title:"C#的高级用法",author:"zt","day":"2012-4-3","tags":["c#","sql"]},
+{title:"php mongodb",author:"lx","day":"2012-12-14","tags":["php","nosql","mongodb"]}
+])
+
+test>db.posts.group({
+		"key":{"day":true},
+		"initial":{tags:{}}, 
+		"$reduce":function(doc,prev){
+					for(i in doc.tags){ 
+						if(doc.tags[i] in prev.tags)
+						{
+							prev.tags[doc.tags[i]]++; 
+						}else{
+							prev.tags[doc.tags[i]]=1;
+						}
+					}		
+				}
+	})
+[
+        {
+                "day" : "2012-12-14",
+                "tags" : {
+                        "java" : 1,
+                        "spring" : 1,
+                        "nosql" : 2,
+                        "php" : 1,
+                        "mongodb" : 1
+                }
+        },
+        {
+                "day" : "2012-5-10",
+                "tags" : {
+                        "struts 2" : 1,
+                        "hibernate" : 1,
+                        "spring" : 1
+                }
+        },
+        {
+                "day" : "2012-4-3",
+                "tags" : {
+                        "c#" : 1,
+                        "sql" : 1
+                }
+        }
+]
+
+//将分组后的数组类型 合并到一个数组
+test>db.posts.aggregate([{$unwind:"$tags"},
+					{$group:{_id:"$day",
+							 "tags":{$push:"$tags"}
+							}
+					}
+				])
+//或：
+test>db.posts.aggregate([
+			{$group:{_id:"$day",
+					"tags":{$push:"$tags"}
+					}
+			},
+			{$project:
+				{"res":
+					{$reduce:
+						{input:"$tags",
+							initialValue:[],
+							in:{$concatArrays:["$$value","$$this"]}
+						}
+					}
+				}
+			}
+		])			
+{ "_id" : "2012-5-10", "tags" : [ "struts 2", "hibernate", "spring" ] }
+{ "_id" : "2012-4-3", "tags" : [ "c#", "sql" ] }
+{ "_id" : "2012-12-14", "tags" : [ "java", "spring", "nosql", "php", "nosql", "mongodb" ] }
