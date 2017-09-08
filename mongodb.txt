@@ -271,6 +271,57 @@ test>db.posts.group({
         }
 ]
 
+//使用 mapReduce 实现：
+
+db.posts.mapReduce(
+	function(){
+		var value={};
+		for(i in this.tags)
+		{
+			if(!value[this.tags[i]])
+			{
+				value[this.tags[i]]=1;
+			}
+			else
+			{
+				value[this.tags[i]]++;	
+			}
+			
+		}
+		emit(this.day,value);
+	},
+	function(key,values)
+	{
+		var t=values[0];
+		if(!t)
+		{
+			t={};
+		}
+		for(i=1; i<values.length; i++ )
+		{
+			for(k in values[i])
+			{
+				if(t[k]==undefined)
+				{
+					t[k]=values[i][k];
+				}
+				else{
+					t[k]++;
+				}
+			}
+		}
+		return t;
+	},
+	{"out":"tt"}
+
+)
+说明：
+	(1)reduce 函数不能返回 数组， 否则会报错：
+
+		       "errmsg" : "reduce -> multiple not supported yet",
+		因此在map 函数中 定义的 value 不能为[] ,
+
+
 //将分组后的数组类型 合并到一个数组
 test>db.posts.aggregate([{$unwind:"$tags"},
 					{$group:{_id:"$day",
@@ -298,3 +349,121 @@ test>db.posts.aggregate([
 { "_id" : "2012-5-10", "tags" : [ "struts 2", "hibernate", "spring" ] }
 { "_id" : "2012-4-3", "tags" : [ "c#", "sql" ] }
 { "_id" : "2012-12-14", "tags" : [ "java", "spring", "nosql", "php", "nosql", "mongodb" ] }
+
+
+group() 使用 finilize 指定处理最后结果函数：
+	db.posts.group(
+		{ "key":{"day":true},
+			"initial":{tags:{}}, 
+			"$reduce":function(doc,prev){ 
+				for(i in doc.tags){  
+					if(doc.tags[i] in prev.tags)
+					{
+						prev.tags[doc.tags[i]]++;  
+					}
+					else{ prev.tags[doc.tags[i]]=1; } 
+			}
+		},
+		"finalize":function(prev){
+			var maxpopular=0; 
+			for(i in prev.tags)
+			{
+				if(prev.tags[i] > maxpopular)
+				{
+					prev.tag=i;
+					maxpopular=prev.tags[i];
+				} 
+				
+			} 
+			delete prev.tags; 
+		}
+	} )
+	finalize 指定 处理 每个分组的最后的键值 函数
+输出：
+[
+        {
+                "day" : "2012-12-14",
+                "tag" : "nosql"
+        },
+        {
+                "day" : "2012-5-10",
+                "tag" : "struts 2"
+        },
+        {
+                "day" : "2012-4-3",
+                "tag" : "c#"
+        }
+]
+使用 mapReduce()实现：
+db.posts.mapReduce(
+	function(){
+		var value={};
+		for(i in this.tags)
+		{
+			if(!value[this.tags[i]])
+			{
+				value[this.tags[i]]=1;
+			}
+			else
+			{
+				value[this.tags[i]]++;	
+			}
+			
+		}
+		emit(this.day,value);
+	},
+	function(key,values)
+	{
+		var t=values[0];
+		if(!t)
+		{
+			t={};
+		}
+		for(i=1; i<values.length; i++ )
+		{
+			for(k in values[i])
+			{
+				if(t[k]==undefined)
+				{
+					t[k]=values[i][k];
+				}
+				else{
+					t[k]++;
+				}
+			}
+		}
+		return t;
+	},
+	{"out":"tt",
+		"finalize":function(k,reduceVal){
+			var maxcount=0;
+			var s="";
+			for(i in reduceVal)
+			{
+				if(reduceVal[i]>maxcount)
+				{
+					maxcount=reduceVal[i];
+					s=i;
+				}
+			}
+		return {"dt":k,"tag":s};	
+		}
+		
+	}
+
+)
+输出：
+[
+        {
+                "day" : "2012-12-14",
+                "tag" : "nosql"
+        },
+        {
+                "day" : "2012-5-10",
+                "tag" : "struts 2"
+        },
+        {
+                "day" : "2012-4-3",
+                "tag" : "c#"
+        }
+]
