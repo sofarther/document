@@ -467,3 +467,23 @@ db.posts.mapReduce(
                 "tag" : "c#"
         }
 ]
+
+修改副本集成员配置时的限制：
+1、不能修改_id；
+	当 rs.initiate() 在两个节点上执行后 ，则两个节点创建的单机节点中
+		members:[{_id:0}], _id 为0，
+	此时不能将其中一个节点添加到另一个节点成员：
+		会报错：
+			 failed with Received heartbeat from member with the same member ID as ourself: 0	
+		因此需要对其中的一个节点重新初始化，
+		a. 停止mongod 服务，
+		b. 将 配置的 dbpath 目录下的文件全部删除
+		c. 按照原来的参数重启 mongod 服务，
+		d.在另一个节点 执行添加节点成员：
+				rs.add("192.168.1.127:27017")
+		此时192.168.1.127 节点上的mongod 服务已作为副本集 存在
+	说明：
+		(1)添加节点时， 当前主节点
+2、不能讲接收rs.reconfig命令的成员的优先级设置为 0；
+3、不能将仲裁者成员变为非仲裁者成员，反正亦然；
+4、不能讲 buildIndexes：false 改为 true；
