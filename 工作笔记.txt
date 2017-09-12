@@ -507,13 +507,17 @@ Domain=[BIGCLOUD] OS=[Unix] Server=[Samba 4.1.1]
 	将该文件路径添加到php.ini 
 	extension=/usr/local/php/lib/php/no-debug/20170407/openssl.so
 26 mysql 去除字段前后 \t \n ,如 \tabc\n 
-	 保存在数据空中 不会显示为\t \n  而是以非打印字符存在，
+
+	 换行符、制表符等 保存到数据库中为换行、制表等格式，但不会显示为\t \n ，
+	可以读取该数据， 使用 json_encode()会将 换行符、制表符显示为\n \t
 	UPDATE `jwr_company_question` SET `question_username`=trim('\t' from
                                                            trim('\n' from `question_username`)) WHERE 1	
  若在php 程序中使用'\tabc\n' 来添加数据时，则\t \n 将不会转义，即保存到数据库中的就是\tabc\n
 	因此 在替换时，则需要将\t \n 进行再次转义 \\t \\n
 	若使用 "\tabc\n", 则将保存到数据库中的是空白字符，则替换时 \t \n 不需要转义	
 
+ 在 textarea文本中输入的 换行符，在提交到后台仍为 换行符，而不会显示为\n，通过htmlspecial_decode()转义，也不会将换行符进行转为<br/>标签
+	
 27.php类属性在定义 直接赋值时， 不能使用不能用函数，表达式之类的
 
 	class  MyClass1 {
