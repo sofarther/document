@@ -483,7 +483,61 @@ db.posts.mapReduce(
 				rs.add("192.168.1.127:27017")
 		此时192.168.1.127 节点上的mongod 服务已作为副本集 存在
 	说明：
-		(1)添加节点时， 当前主节点
+		(1)添加节点时， 若 主节点的地址为 localhost 或 127.0.0.1 时，则不能添加其他IP地址的节点
 2、不能讲接收rs.reconfig命令的成员的优先级设置为 0；
 3、不能将仲裁者成员变为非仲裁者成员，反正亦然；
 4、不能讲 buildIndexes：false 改为 true；
+
+批量杀死进程;
+	ps -ef | grep "mongos" | grep -v grep | awk '{print $2}' | xargs kill -2
+
+配置 分片：
+	（1）启动每个配置服务器，
+			启动参数：
+				#数据目录
+				dbpath=/usr/local/config/
+				#日志文件
+				logpath=/var/log/mongodb/mongodb_config.log
+				#日志追加
+				logappend=true
+				#端口
+				port = 20000
+				#最大连接数
+				maxConns = 50
+				pidfilepath = /var/run/mongo_20000.pid
+				#日志,redo log
+				journal = true
+				#刷写提交机制
+				journalCommitInterval = 200
+				#守护进程模式
+				fork = true
+				#刷写数据到日志的频率
+				syncdelay = 60
+				#storageEngine = wiredTiger
+				#操作日志,单位M
+				oplogSize = 1000
+				#命名空间的文件大小,默认16M，最大2G。
+				nssize = 16
+				noauth = true
+				unixSocketPrefix = /tmp
+				configsvr = true 
+				replSet=Test
+		说明：	
+			a. 在3.2版本，mongos 路由服务配置参数 configdb的方式已经变成了：
+					configReplSet/<cfgsvr1:port1>	
+				即必须指定 复制集名， 故配置服务器启动时必须以 replSet 参数启动
+			b. 配置服务器 需添加 configsvr 参数		
+	（2）连接到其中的一个配置服务器 
+		初始化配置复制集
+		var config={_id:"Test",members:[{_id:0,"host":"192.168.1.102:20000"},{_id:1,host:"192.168.1.127:20000"}]}
+		rs.initiate(config)
+		在配置复制集前，不要连接多个配置服务器，否则在初始化时，会报错 data 不为空，	
+				此时需将该配置服务器的数据目录下的文件清空
+	（3）启动路由服务器 mongos
+			启动参数：
+				logpath=D:\Program Files\MongoDB\mongos\mongodb.log 
+				logappend=true 
+				quiet=true 
+				port=30000
+				configdb=Test/192.168.1.102:20000,192.168.1.127:20000
+			其中 configdb 来指定 配置服务器的地址和端口，但需指定复制集名	
