@@ -680,3 +680,65 @@ jectId("59c0bac43a5591d61c35d03f"), "ns" : "test.large", "min" : { "_id" : 2 },
 191366 }, "max" : { "_id" : { "$maxKey" : 1 } }, "shard" : "Test" }
 
 
+选择片键：
+
+片键规则和指导方针：
+
+    1). 片键限制：片键不可以是数组。文档一旦插入，其片键就无法修改了。要修改文档的片键值，就必须先删除文档。
+
+    2). 片键的势：选择一个值会变化的的键非常重要，即值很多，随着数据量的增大可以分出更多的片键。分片在势比较高的字段上性能更佳
+	1.升序片键：
+		使用如时间戳或者objectId一类的字段来分片，当数据较多时，再次插入数据会 进行对当前块进行分割，
+		在分割后 只会在最后一块插入数据，这种情况会一直持续下去，这就造成了一个单一且不可分散的热点
+	2.随机片键：
+		采用一个取值随机的字段来做分片，但是随着数据量越来越大，他会越来越慢
+		现在假设我们非常忙而分片2上的一个块填满并分裂了，配置服务器注意到分片2比分片1多出了10个块并判定应该抹平分片间的差距，
+		这样MongoDB就需要随机加载5个块的数据到内存中并发给片1，考虑到数据序列的随机性，一般情况下这些数据当前可能没有在内存中，
+		所以此时的MongoDB会给RAM带来更大的压力，而且还会引发大量的磁盘IO
+	另外，片键上必须有索引，因此如果选择了从不依据索引查询的随机键，基本上可以说浪费了一个索引
+	3.小基数片键：
+		选择了一个基数很小的片键，最终会得到一堆巨大无法移动也不能分割的块，因为相同的片键值必须保存在同一个块中
+	4.组合片键：
+
+		{coarselyAscending:1,search:1}这样的组合片键来实现，
+		其中coarselyAscending的每个值最好能对应几十到几百个数据块，
+		而search则应当是应用程序通常都会一句其进行查询的字段
+		既能把我们正在读写的数据保持在内存中，又可以均衡的分散在集群中
+	5.散列片键：
+		适用 大量查询中使用使用升序键，但同时又希望写入数据随机分发
+			每个块内 都是_id 键升序的
+		创建步骤： 
+			 创建索引：db.users.ensureIndex({"username":"hashed"}) 
+			  指定 散列片键： sh.shardCollection("app.users",{"username":"hashed"})	
+			散列片键 不能使用 unique 选项 
+	6.通过指定分片 tag ,并指定该 tag 的范围，所有处于该范围的文档将保存在该tag标记的分片上
+		同一个tag 可由多个分片绑定， 一个分片可以绑定多个tag  
+		sh.addShardTag(shard, tag)
+	
+		sh.addShardTag("shard0000", "NYC")
+		sh.addShardTag("shard0001", "LAX")
+		sh.addShardTag("shard0002", "NRT")
+		指定范围：
+		 sh.addTagRange("namespace",最小值,最大值,"tag")
+		其中  namespace 指定 集合的全限定名，
+			
+		sh.addTagRange( "exampledb.collection",
+                { state: "NY", zip: MinKey },
+                { state: "NY", zip: MaxKey },
+                "NY"
+              )	
+		
+		当通过 MinKey 和MaxKey 表示范围，则指定的集合的所有文档都会保存到 该tag 标记的分片
+		sh.addTagRange("test.large",{name:MinKey},{name:MaxKey},"tag1")	
+		其中 name 为片键名
+
+2017-09-19T10:46:06.266+0800 I REPL     [rsSync] oplog sync 1 of 3
+2017-09-19T10:46:06.266+0800 I REPL     [rsSync] oplog sync 2 of 3
+2017-09-19T10:46:06.266+0800 I REPL     [rsSync] initial sync building indexes
+2017-09-19T10:46:06.266+0800 I REPL     [rsSync] initial sync cloning indexes for : admin
+2017-09-19T10:46:06.267+0800 I STORAGE  [rsSync] copying indexes for: { name: "system.version", type: "collection", options: {}, info: { readOnly: false }, idIndex: { v: 1, key: { _id: 1 }, name: "_id_", ns: "admin.system.version" } }
+2017-09-19T10:46:06.268+0800 E REPL     [rsSync] 22 Attempt to use a decimal BSON type when experimental decimal server support is not currently enabled.
+2017-09-19T10:46:06.268+0800 E REPL     [rsSync] initial sync attempt failed, 0 attempts remaining
+2017-09-19T10:46:07.253+0800 I REPL     [ReplicationExecutor] could not find member to sync from
+2017-09-19T10:46:11.268+0800 F REPL     [rsSync] The maximum number of retries have been exhausted for initial sync.
+2017-09-19T10:46:11.269+0800 I -        [rsSync] Fatal Assertion 16233
