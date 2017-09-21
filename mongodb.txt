@@ -641,16 +641,16 @@ estamp(1, 7)
 	
 config>show tables
 actionlog
-changelog
-chunks
-collections
-databases
+changelog 记录所有拆分和迁移操作
+chunks 记录集合中所有块的信息
+collections 记录所有分片集合的信息
+databases 记录集群中所有数据库的信息
 lockpings
 locks
 migrations
 mongos
-shards
-tags
+shards 集群中所有分片的信息
+tags   系统配置分片标签，每个标签都与一个块范围相关联
 version
 
 	config>db.chunks.find()
@@ -742,3 +742,33 @@ jectId("59c0bac43a5591d61c35d03f"), "ns" : "test.large", "min" : { "_id" : 2 },
 2017-09-19T10:46:07.253+0800 I REPL     [ReplicationExecutor] could not find member to sync from
 2017-09-19T10:46:11.268+0800 F REPL     [rsSync] The maximum number of retries have been exhausted for initial sync.
 2017-09-19T10:46:11.269+0800 I -        [rsSync] Fatal Assertion 16233
+
+查看网络连接：
+	可以使用connPoolStats命令，查看mongos和mongod之间的连接信息：db.adminCommand({"connPoolStats":1})	
+
+	在一个分片上执行connPoolStats，输出信息中可以看到该分片与其他分片间的连接，包括连接到其他分片做数据迁移的连接
+
+限制连接数量： 
+		可在mongos的命令行配置中使用maxConns选项，这样可以限制mongos能够创建的连接数量。
+		可以使用下面公式计算分片能够处理的来自单一mongos连接数量：
+
+                              maxConns = 20000 - (mongos进程的数量 * 3 ) - (每个副本集的成员数量 * 3 ) - (其他/mongos进程的数量)
+
+			其中：
+				(mongos进程的数量 * 3 ) 每个 mongos 会为每个mongod 创建3个连接：
+						一个用于转发客户端请求，一个用于追踪错误信息，即写回监听， 一个监控副本集状态
+				 (每个副本集的成员数量 * 3 ) 主节点与每个备份节点创建一个连接， 每个备份节点会与主节点创建两个连接
+				(其他/mongos进程的数量) 值其他可能连接到 mongod 的进程数			
+			maxConns 只能阻止 mongos 创建多于该值的连接数，但不能出来连接耗尽，
+				当连接耗尽时，则请求会发生阻塞
+                              MongoDB如果没有安全退出，那些已经打开的套接字很可能没有被关闭。
+				当执行操作时，会遇到错误，并刷新连接，因此可能会出现大量重新连接，此时除了重启进程，没有其他特殊有效的方法
+
+删除分片： 需在admin 上执行 db.runCommand({removeShard:"shard_name"})	
+		 
+		保证 均衡器开启
+		均衡器会将该分片上的所有块移至到其他分片上，块在移动时可能会被拆分
+		然后在块迁移后， 若仍有数据库以该分片为主分片时，则需在删除分片前将这些数据库移除
+			db.adminCommand({movePrimary:"blog",to:"other_shard"})
+		再次执行 db.runCommand({removeShard:"shard_name"})
+		在移除某个分片过程中，可以执行 db.runCommand({removeShard:"shard_name"}) 多次，查看当前状态
