@@ -1,0 +1,415 @@
+一、ubuntu编译安装emacs24：
+1.下载emacs24: http://mirrors.ustc.edu.cn/gnu/emacs/, 下载 emacs-24.5.tar.xz
+  解压xz文件： xz -d emacs-24.5.tar.xz
+                     tar vxf emacs-24.5.tar -C /usr/local/lib/ 解压到指定目录
+
+2.安装所需的依赖包：libgtk2.0-dev libxpm-dev libjpeg-dev libgif-dev libtiff-dev:
+    sudo apt-get install libgtk2.0-dev libxpm-dev libjpeg-dev libgif-dev libtiff-dev
+3.进入到/usr/local/bin/emacs-24.5/:
+   (1) ./configure
+   显示 ： configure: error: The required function `tputs' was not found in any library.
+    缺少必须的函数'tputs'，有可能在libncurses-dev中，安装该包：
+     sudo apt-get install libncurses-dev
+     然后再执行： ./configure
+     (2)make :
+      显示： In end of data:
+      	     progmodes/cc-mode.el:1788:1:Warning: the following functions might not be
+	     defined at runtime: cc-bytecomp-load, cc-bytecomp-is-compiling,
+	     cc-bytecomp-restore-environment, cc-bytecomp-setup-environment,
+	     c-populate-syntax-table
+      不需要理会，用 src/emacs试一下，没有问题了再运行是否可以运行
+      (3)若src/emacs可以运行，则执行： sudo make install
+      此时emacs安装成功，可以在任何目录直接执行 emacs命令来运行
+
+二、emacs入门：
+ 1. emacs里所有操作都是LISP指令
+ 2.功能快捷键说明：
+   C- 表示按住Ctrl键不放
+   M- 表示按住Alt键不放,也可以按ESC键一下释放 来代替
+   (1)快捷键输入和取消：
+       M-x <cmd> 输入指令并执行，在输入时可以用Tal来自动不全或列出项目
+            在按住Alt, 并按下x 时， 在窗口最下出现： M-x的提示， 此时可以输入指令
+	    emacs支持英文单词来查找命令，如输入 next 按Tab 来查看next 开头的指令
+	C-g 取消当前操作指令
+	C-h   k <key>查看 <key>绑定的指令和介绍
+  (2)文件操作：
+     C-x C-c 退出emacs
+     C-x C-f 打开文件
+       C-x C-s 保存文件
+     C-x s : 保存所有未保存的buffer，会提示你是否需要保存
+     C-x C-w 文件另存为
+    C-x C-v 在当前缓冲区重新打开一个文件， 可以用于清除undo历史
+    C-x 1          最大化当前缓冲，关闭其它
+   C-x 2/3        垂直、水平创建新缓冲区
+    C-x o          切换到其它缓冲区
+    C-x C-b        列出缓冲区
+   C-x b          提示输入缓冲区名称，切换当前窗口的缓冲区
+   C-x k          删除当前缓冲区
+
+(3)编辑：
+  C-d 删除 前后字符
+   M-d 移出 前后单词 ,移出的单词放在剪贴板，可以进行粘贴
+   C-k 或 M-k 移出到行末、句末， 移出的内容 可以进行粘贴
+   C-/ 或 C-x u undo/redo :
+                       当执行undo操作后，若直接再次执行undo操作，则会继续取消之前的操作
+		       若在执行undo后执行不改变缓冲区的内容的操作，如移动光标，
+		          再执行undo， 则会恢复之前取消的修改，即 redo
+   C-w  剪切一块区域；如果没有设置mark，则是剪切一行
+   M-w (redefined) : 拷贝一块区域；如果没有设置mark, 则是拷贝一行
+   M-@或C-@: 设置mark;
+   
+   C-y 粘贴， 移除的、复制、剪切的内容
+   
+   C-j 插入换行符， 有些模式下比较直接回车好用，有增加缩进之类的功能
+   (4) 查找：
+    C-s 开启查找：
+       C-s 查找下一个
+       C-r 查找上一下
+       C-g 一次返回，二次结束查找
+        回车    停止到当前查找到的内容
+ （5)替换 ： M-%
+  (6)移动光标：
+     C-n/p/b/f  下一行/上一行/前一个字符/后一个字符
+     M-b/f  或 C-left/right 前、后单词
+     C-a/e 行首、末
+      M-a/e 句首、句末
+      M-</> 文件的开头/结尾 
+   C-M-f 移动到光标后的([{ 匹配的）]}位置
+   C-M-b 移动到光标前的)]} 匹配的([{的位置
+      C-up/down或 M-{/} 前、后一段
+      M-x goto-line  移动到某一行
+   C-l 重绘屏幕，效果为当前编辑行移动到窗口中央
+   (7)窗口操作
+   C-x 0 : 关闭当前窗口
+   C-x 1 : 将当前窗口最大化
+   C-x 2 : 垂直分割窗口
+   C-x 3 : 水平分割窗口
+   M-o (redefined) : 在窗口之间切换; C-x o 是默认命令
+   C-x 5 b: 选择一个缓冲区， 打开另一个新窗口显示
+   C-x 5 2 打开新窗口显示当前的缓冲区的内容
+  （8)其他
+  C-u 数字 命令 : 执行多次(数字表示次数)该命令；“M-数字 命令” 也可以
+       默认为4 , C-u C-n 表示向下移动四行
+           C-u 字符 表示输入4个字符
+          C-u 3 C-u 5 表示输入3个5, 不能使用 C-u 3 5,该表示输入35个空格
+   C-x h : 全部选中
+C-z   挂起Emacs
+   C-h ? : 查看帮助信息
+C-h f : 查看一个函数
+C-h v : 查看一个变量
+C-h k : 查看一个键绑定 (C－h c 也是查看键绑定，但是信息较简略)
+C-h C-f : 查看一个函数的Info，非常有用
+C-h i : 看Info
+三、配置：
+ (1)颜色主题配置：
+    a.下载颜色主题： http://download.savannah.gnu.org/releases/color-theme/
+       将压缩包中color-theme.el和themes文件夹拷贝到某个文件夹, 一般放在 ~/.emacs.d/下
+	   在新版emacs中,若直接放在该目录下，在启动emacs时会出现警告，可以放在该目录的子目录下，如themes/
+	b.配置~/.emacs文件：
+	   (add-to-list 'load-path "~/.emacs.d/themes/")
+	   (require 'color-theme)
+	   (color-theme-initialize)
+	   (color-theme-deep-blue) 表示选择color-theme-deep-blue
+   3.在emacs中更换主题： 打开emacs后， M-x color-theme-select 中选择的主题， 按下 i  或者 enter就可以选择主题。  
+   						 如果你觉得这个主题是你想要的就按下  d   就可以按照提示得到该主题的名称。    
+ 						 如果喜欢就可以写入到 .emacs文件内，之后的都可以用这个效果了
+
+ 四、emacs 使用：
+
+ 1.Ctrl-h 的用法
+      
+     萤幕的最下端会出现如下的讯息: C-h(Type ? for further options)：
+        ？：萤幕的下方会出现所有可使用的选择
+         Ctrl-h:萤幕下方 会出现: type one of the options listed or Space to scroll 
+          此时 EMACS 会另外开启一个视窗，Space 可以向下显示内容
+   	 c ：输入快捷键，显示该快捷键的命令名， Ctrl-x Ctrl-c
+                 显示 C-x C-c runs the command save-buffers-kill-emacs
+	 k ： 同上
+        w :  输入命令，查看命令是否有相对应的 Hotkey， save-buffers-kill-emacs
+                       也可以输入命令的首字母，通过自动补齐，查看命令名和对应的快捷键
+       a： 所键入的子字串,并不限於指令的第一个字符
+	   b: 查看绑定的热键
+  2.屏幕整体移动： Ctrl-v 向下显示
+                  Meta-v 向上显示
+  3.Emacs 中执行 Shell：
+    （1)shell command mode：EMACS 会开启一个名为 ``*Shell command output*'' 的视窗,将 shell 指令执
+         行的结果显示在此视窗中
+         ESC-! 
+         Ctrl-u ESC-! ：可以将 shell 指令执行的结果,输出到 游标所在的位置
+    （2)shell mode 则是执行一个subshell,其输入与输出都是透过同一个缓冲区,所以输入与输出是在同一个地方
+            启动一个单独的缓冲区
+          ESC-x shell
+         执行上个命令： ctrl -up
+         退出： exit
+4.dired: 文件管理：C-x d 都可以进入目录的 Dired 缓冲中
+  （1) 标记文件： 除了 进入目录 或打开文件外，其他操作都是对于标记的文件进行，而不是当前光标所在的文件
+      
+        m 标记文件，下移一行 
+	u 去掉标记，下移一行 
+	U 去掉缓冲中所有的标记
+        Backspace 并去掉上一行标记，并上移一行
+       M-Backspace 去掉缓冲中所有的某个标记，缺省为 * 标记
+       t 标记/未标记互换
+  	d 设置“删除标记”（字符D），并且光标下移一行
+       x 删除用 d 标记的文件/目录
+ 	D 删除当前的文件/目录 
+    * * 标记所有可执行文件 
+	* . 标记所有同扩展名文件 [ux]
+	* / 标记所有目录 [u]
+	* @ 标记所有符号连接
+  （2)移动光标:
+          n, p, SPC 上、下移动光标
+          M-g 光标移动到某个文件上
+  （3)访问文件，目录
+	e, f, RET 打开文件或目录
+	a 打开文件或目录，并替换当前缓冲
+	v 使用 view 模式查看文件，q 退出，有些文件使用外部查看程序调用
+	o 另一个窗口中，打开文件或目录
+	C-o 另一个窗口中，打开文件或目录，但当前窗口不变
+	F 打开(多个)文件 [x*]
+  (4)退出：
+        ^ 访问目录的父目录
+		q 退出当前目录
+  （5)隐藏/刷新缓冲中内容：
+      g 刷新缓冲所有文件
+      k 隐藏标记文件，按 g 可以再显示出来
+	$ M-$  隐藏/显示当前目录中内容 
+   （6)创建 文件或目录以及连接
+	C-x C-f 创建文件
+	+ 创建目录
+	S 创建文件的 Symbol link (绝对路径) ，目标文件为光标所在的文件
+
+	H 创建文件的 Hard link 目标文件为光标所在的文件
+
+ （7)复制、移动和重命名文件或目录：
+     	C 复制文件 [*]，当目录不为空时，会提示，需输入y,否则失败
+	R 文件的重命名/移动 [p*]
+（8)修改文件名、属性
+	M 修改文件 rwx 权限属性 [*]
+	G 修改文件 Group 属性 [p*]
+	O 修改文件 Owner 属性 [p*]
+	T 修改文件的时间戳 [p*]
+	% l 文件名逐一改为小写 [p*]
+	% u 文件名逐一改为大写 [p*]
+	% R, % r 重命名/移动匹配 regexp 的文件 [p*]
+ （9)其他
+	= 比较文件
+	M-= 文件和备份之间比较，若有前缀参数，提示输入 diff 选项 [u]
+	w 复制文件名到 kill-ring [p*]
+	Z 压缩/解压缩文件 [p*]
+	X 在文件上执行 shell 命令 [p*]
+	B 编译(Emacs Lisp)文件 [p*]
+	L 加载(Emacs Lisp)文件 [p*]
+	y 给出文件类型信息 (通过 file 命令)
+	P 打印文件 [p*]
+5.Emacs 的屏幕安排：
+  启动 EMACS 时,会产生二个预设的视窗： 
+    一个视窗用来输入一般 的文件,在未有文件输入前先用来展示前面提到的EMACS 版本、 线上辅助说明以及有关版权等讯息;
+  
+ 另一个视窗用来输入指令 或是用做讯息的回应,称为 minibuffer 或 echo area
+  
+  中间的反白的长条型则称为 mode line ,它是用来描述输入文件视窗 的一些讯息
+  （1) mode line : mode line 所描述的讯息如下: 
+       encode:mm- buf  viewsize(line,char)  (major minor) 
+      其中：
+       encode 表示当前文件的编码： 
+         c -- chinese-gbk-unix, chinese-iso-8bit-unix (alias: cn-gb-2312-unix euc-china-unix   
+                euc-cn-unix cn-gb-unix gb2312-unix)
+          U -- utf-8-unix (alias: mule-utf-8-unix)
+        当文件出现乱码时，可以指定编码来重新载入缓冲区：
+         C-x <RET> 
+          r gbk  <RET>
+         当该文件已被自动保存后，会提示是否从自动保存的文件载入，输入 n, 然后提示从原文件重新载入即可
+        C-x <RET> f coding <RET> 设置文件保存的编码
+   	 C-x <RET> c coding <RET> 指定下一个命令的编码
+    查看当前使用的编码系统： C-h C 
+       Coding system for saving this buffer:
+ 	 U -- utf-8-unix (alias: mule-utf-8-unix)
+
+	Default coding system (for new files):
+ 	 c -- chinese-iso-8bit-unix (alias: cn-gb-2312-unix euc-china-unix euc-cn-unix cn-gb-unix gb2312-unix)
+
+	Coding system for keyboard input:
+  U -- utf-8-unix (alias: mule-utf-8-unix)
+
+	Coding system for terminal output:
+  U -- utf-8 (alias: mule-utf-8)
+
+	Coding system for inter-client cut and paste:
+  U -- utf-8 (alias: mule-utf-8)
+
+	Defaults for subprocess I/O:
+  decoding: c -- chinese-iso-8bit (alias: cn-gb-2312 euc-china euc-cn cn-gb gb2312)
+
+  encoding: c -- chinese-iso-8bit (alias: cn-gb-2312 euc-china euc-cn cn-gb gb2312)  
+  
+   ....
+
+     m 表示权限：该缓冲区是否可写： - 或*表示可写； %表示只读
+     m 表示是否修改： -或% 表示没有修改；*表示已修改
+    buf 表示该视图缓冲区的名称，一般即为所编辑的档案名称
+   viewsize(line,char) ：
+       viewsize 表示文件在视窗显示的情形： All Top nn% Bot
+           line为当前光标所在的行， char 为所在的列（字符）
+    major minor
+	此缓冲区所有使用的模式( mode)都列举在此括号内。其中 包括一个主要模式
+	(major mode)和数个次要模式( minor mode)。 EMACS 允许一个缓冲区有数个
+	次要模式,但只能有一个主要模式。
+      当为重写模式时，会显示 Ovwrt
+  （2)echo area 和minibuffer:
+         echo area  回应键入的指令, 和会将指令所产生的讯息显示出来;错误讯息的显示也是利用此区域 
+      minibuffer   是用来输入执行 指令所需的参数；
+         minibuffer 输入参数的地方,是在 echo area 回应字串的 :  之後
+       已在 minibuffer 的状态, 但不想输入任何参数, 此时可以  Ctrl-g(keyboard-quit)) 离开 minibuffer
+  （3)缓冲区和视图：
+   a.缓冲区是用来存放 编辑文件的；是 EMACS编辑文件时,暂时存放文件的地方。 这个地方只用来暂时存放文件,要想永久保留这些文件,必需将 暂时存放的文件储存起来。
+    Emacs 删减、修改与新增文件,都是在 缓冲区内进行,不会影响到原文件，
+  b. EMACS 有一个自动储 存文件的功能,称为 `` auto save'' ，自动储存的功能并非将文件直接存回该档案 所在的硬盘中,而是将缓冲区的文件存入一个暂存档内， 只有以存档的指令,例如 `` Ctrl-x Ctrl-s'' 的指令,将缓
+冲区的 文件存回硬盘时,缓冲区内的文件才会存回硬盘中。
+    只有当文件 存回硬碟中,EMACS 才会自动清除此暂存档，暂存档名称为文件名前后添加#
+    当再次访问该文件时，会提示是否载入自动保存的文档
+   c.除了暂存档外, EMACS 对於每一个编辑的档案, 都会在编辑前做一份备份,备份档的设计是,当档案被存回硬碟後, 备份档 也不会因此而消失。
+    EMACS 命名备份档的方式,是在所要编辑的档名之後加上 ~ 
+   d.查看和设置变量：
+     查看：Ctrl-h  v RET
+      输入变量名： auto-save-visited-file-name
+       显示： nil （表示FALSE， t 表示真）
+      设置： Meta-x set-variable RET
+        输入： auto-save-visited-file-name RET
+       显示： Set auto-save-visisted-file-name to value:
+       输入： t
+     在 EMACS 执行过程中所设定的变数值,只对目前所执行的 EMACS 有用,一旦离开此
+EMACS,所有的设定就恢复成原来的 预设值
+    e.缓冲区列表： Ctrl-x b buffer 选择缓冲区
+                Ctrl-x k buffer 删除缓冲区
+              Ctrl-x Ctrl-b 显示所有缓冲区 或 Meta-x buffer-menu
+                其中 CRM列： *表示该缓冲区被修改
+                            %表示该缓冲区为只读
+			    . 表示当前缓冲区
+                    Buffer 表示缓冲区名； 若其前后后*，则表示不是访问的文件
+                   Size,显示缓冲区的大小
+                  Mode,显示缓冲区所使用的主要模式
+  		File,表示所访问档案的绝对名称，若不是访问文件，则为空白	
+            可以使用以下命令来管理：
+    		d  标示所欲删除的缓冲区。并不会删除文件 在 CRM 栏位的最前方会出现 D
+		s 标示所欲储存的缓冲区。 在 CRM 栏位处标示上 S
+		x 对做好标记的缓冲区,下达执行的命令。也就是对标示有 D 与 S 的缓冲区,做执行的动作
+              	u 将光标所在的缓冲区设好的标记取消
+		f 选择光标所在的缓冲区为当前缓冲区
+   f.使萤幕左右卷动
+     
+     萤幕向左卷动:Ctrl-x <(scroll-left)
+
+  萤幕向右卷动: Ctrl-x >(scroll-right)
+
+ 6.载入文件和保存：
+    （1)显示当前文件所在目录： Meta-x pwd
+    （2）显示当前目录下的文件和目录： Ctrl-x d
+     (3) 打开其他目录下的文件：在输入Ctrl-x Ctrl-f 后，默认的开始目录为当前目录， 若要打开的文件路径
+        并不与当前目录重合，除了删除提示路径字符外，还可以输入/表示从根目录开始，忽略提示的当前路径 
+   (4)在当前文件的光标位置插入其他文件内容： Ctrl-x i
+   
+   (5)Ctrl-x Ctrl-s 保存当前缓冲区文件
+    （6) Ctrl-x Ctrl-w 另存为
+    （7)Ctrl-x s 保存所有修改的缓冲区文件，echo area 会提示是否保存
+                 输入： 
+                    y 表示保存，每个文件都会询问
+                    n   不保存，每个文件都会询问
+                  !  同意对 echo area 所显示的缓冲区存档且不再询问
+		 . 只对当前文件保存
+		q 离开存档的状态而不执行任何存档的动作
+7.输入模式：
+   （1)重写模式和插入模式切换： Meta-x overwrite-mode RET
+    (2)文件的删除：
+        EMACS 中的删除有两种形式,一种是指文件的 killing , 另一种则指文件的deletion：
+        kill-ring：删除的内容保存在kill-ring 变量中，所有的缓冲区只共享一个kill-ring
+          可通过 C-h v kill-ring查看该变量值
+      属于kill-ring 的删除命令：
+      M-d 、M-Backspace 、C-k 、 C-x C-o 删除光标前后的空行 、 C-w
+
+	deletion:直接删除,但可以通过C-x u 或C-/ （undo）找回
+         属于deletion 的删除命令：
+                  C-d 、Backspace M-\(删除光标位于的两个字符之间的所有空格)
+   （3)Yanking： 从kill-ring 中取出数据： 
+             C-y 取出最后一次删除放到 kill-ring的数据
+            实际上之前保存的数据并没有覆盖，可以在输入C-y 后输入M-y来浏览之前的数据，并选择
+	 Meta-y 指令之前,一定要先执行  Ctrl-y	
+  (4)标记区域： 可以通过 C-x C-x 来移动光标到标记区域的另一端
+             在标记区域中可执行： C-x C-l 转为小写
+				C-x C-u 转为大写
+ 8.查找替换：
+  （1)查找： C-s 向后搜索或C-r向前搜索
+	  重复执行C-s 或C-r 跳转到下一个或上个匹配的位置
+   当找到指定的位置后可以按RET结束查找 或C-g 返回到搜索的开始位置； 
+   若没有找到匹配项，则按 C-g 结束	
+    所有搜索的字符串都保存在 search-ring 变量中，可以输入 
+ESC-p 获取上次搜索的字符串，并可以重复进行遍历
+			或ESC-n 向前遍历
+   默认不区分大小写： 可设置 case-fold-search 变量来切换
+		  或在查找时，输入 M-c 来切换，只对当前查找有效	
+			
+      a.输入同时开始查找：   echo area 出现I-search: 输入要查找的字符串
+                 
+    
+    
+      b.输入字符串后开始查找：      echo area 出现I-search:  输入RET
+		显示	Search: 输入查找的字符串  
+     c.正则搜索： 按ESC 后输入C-s 或C-r, 切换输入后开始查找，同上；  
+     d.查找词组：忽略掉一些标点符号，比如换行符，逗号，句号， 
+		M-s w RET words RET (word-search-forward) ，
+		向回找M-s w C-r RET words RET (word-search-backward)	
+ (2)替换： 只能向后进行替换
+     a.不询问直接替换： M-x replace-string
+     b.替换时询问 ：M-x query-replace 或M-%
+            空格或y 表示替换； DEL或n表示不替换； ！表示不再询问直接替换； q表示退出替换模式	
+    c.正则替换： M-x query-replace-regexp
+  (3)正则表达式：
+     a.特殊字符：$ ^ . * + ? [ ] \
+     b.\的含义： 当后接的字符为特殊字符时，将其转义为普通字符
+		当后接的字符为某些普通字符时，将其转义为特殊字符：
+   		\( \) \{ \} \| \< \>
+  		\b \B \w \W 
+9.register保存位置和内容：
+       标识字符只能是一个字符，当退出emacs 后会消失
+	（1)将光标移动到要保存的位置，输入 ： C-x r SPC 
+	 会显示：Point to register ， 输入一个字符来标识，如x
+       移动到保存的位置： C-x r j 会显示保存的register的内容，再输入标识的字符x 即可
+       （2) 保存内容： 标记内容区域；
+			输入 C-x r s
+ 			输入标识字符： t
+		到指定位置插入内容，输入 C-x r i 
+    提示保存的register内容，输入标识字符t	
+10.bookmark 标签保存文件及其定位：
+            可以使用多个字符来标识标签，永久保存， 会在 /home/sofar/.emacs.d/bookmarks文件中保存
+       
+	（1)设置标签：光标在文件的指定位置，输入 C-x r m 
+			提示输入标签名：默认为当前文件名
+	(2)显示保存的标签列表： C-x r l
+   	(3)跳转到指定的标签：如果尚未在缓冲区中打开这个带书签的文件，
+                那么会打开该文件且定位到保存的位置
+		C-x r b
+		提示要跳转的标签名
+	(4)删除标签：	M-x bookmark-delete
+11.大小写转换： M-l 将光标所在的字转为小写，并移动到下一个字开头
+		M-u 	将光标所在的字转为大写，并移动到下一个字开头
+		M-c 将光标所在的字的手字符大写，并移动到下一个字开头
+12.交换位置： C-t 将光标所在的字符与其前一个字符交换位置，并移动到下个字符
+	     M-t 将光标所在的字与其前一个字交换位置，并移动到下个字,标点符号不会移动
+		C-x C-t 将光标所在的行与上一行交换位置， 并移动到下一行	
+13.调整字体大小： C-= C--
+14.自定义配置：
+ (1)优化注释功能：
+	默认 M-; 必须选中区域后进行注释
+	可配置为：当光标位于行尾时，在行尾添加注释；
+			当光标位于其他位置时，注释该行
+			当选中区域时，注释该区域
+(2)在行中或行末删除整行：
+	C-w 可以在不选中区域时，删除所在行
+	M-w 在不选中区域时，复制所在行
+(3)在个个窗口进行切换：
+	下载 window-numbering.el 放在 .emacs.d/window-numbering/下
+		 设置即可
+		可以使用 M-1/2/3...来切换窗口，1,2,3为每个窗口的编号
+（4）设置透明效果：
+	F11 可以实现将当前窗口透明度增加，
+（5）将光标移动到当前行的中间位置： C-z

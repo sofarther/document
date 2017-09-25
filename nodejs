@@ -1,0 +1,78 @@
+1.安装express:
+xpress4.X的有一些变化，
+4.x版本中将命令工具单独分出来了(https://github.com/expressjs/generator),
+所以要先按装express-generator，否则创建项目时，会提示express命令没找到
+(1)安装:
+	npm install -g express-generator
+	npm install -g express
+说明：
+选项-g表示全局安装，目标模块将会被安装到NODE_PATH的lib里面，同时在node.js安装的路径下bin/中生成express 链接文件到lib/node_modules/express-generator/bin/express
+故可以在任意目录下 使用express 命令来创建项目
+ express -V 显示当前安装的express 版本
+(2)创建项目：express 项目名
+		express的默认模版采用jade，若需要ejs模版支持，加上-e选项，即
+			express -e myfirstexpress
+	express myapp
+	在当前目录下生成的文件：
+	app.js  bin  package.json  public  routes  views
+此时只是创建了项目的目录结构，需要在本地添加依赖（依赖项定义在package.json中）：
+(3) 添加依赖：在当前目录下生成 node_modules目录，用于存放模块：
+	npm install
+(4)启动项目：
+	npm start
+	会执行当前目录下 bin/www 文件： node ./bin/www
+(5)访问：
+	http://127.0.0.1:3000 监听的端口为3000
+2.应用：访问自定义的页面：
+ (1)jade 模板：存放在views/ 下： client.jade:
+	在jade模板中不能直接使用 js 代码，只能引用外部js文件：
+	script(type="text/javascript" src="/javascripts/socket.io.js")
+    说明：
+	在项目入口文件app.js中定义了静态路径为public/ 故将js 或css 等文件放到相对于public/目录，
+	但URL需以/开头
+(2)定义地址路由：
+	在 routes/路径下，新建一个路由文件 client.js
+	var express = require('express');
+	var router = express.Router();
+
+	// 127.0.0.1/client
+	router.get('/', function(req, res, next) {
+ 	 res.render('client'); //输出 client.jade模板内容
+	});
+	
+	// 127.0.0.1/client/user
+	router.get('/user', function(req, res, next) {
+  	res.send('respond with a resource');
+	});
+	module.exports = router;
+(3) 在入口文件中引入该路由文件，并将URL地址绑定到该路由模块：
+	var client=require('./routes/client');
+	app.use('/client',client);
+3.socket.io模块 : 
+ (1)安装： npm install socket.io
+ (2)Socket访问：
+	服务端：
+	var io = require('socket.io').listen(8000);
+	io.on('connection',function(socket){
+	//向客户端发送信息
+	socket.emit('news',{hello:'world'});
+	//接受客户端的信息
+		socket.on('my other event',function(data){
+		console.log(data);
+		});
+	});
+   客户端：在 express 框架：
+	jade模板: 将node_modules/socket.io-client/socket.io.js 复制到public/javascripts/下
+	script(type="text/javascript" src="/javascripts/socket.io.js")
+	script(type="text/javascript" src="/javascripts/client.js")
+
+	public/javascripts/client.js 文件:
+
+	var socket = io.connect('http://localhost:8000');
+	socket.on('news',function(data){
+	console.log(data);
+	socket.emit('my other event',{my:'data'});
+	});
+
+
+

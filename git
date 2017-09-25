@@ -1,0 +1,499 @@
+1.配置 git ：
+	这些配置 会在全局文件 /home/sofar/.gitconfig 或系统文件 /etc/gitconfig 中保存
+	
+	(1) 配置 用户名和邮箱地址
+	git config --global user.name "sofarther"
+	git config --global user.email "794630531@qq.com"
+	
+	(2)设置 命令别名
+		a. 添加系统别名 该配置保存在 /etc/gitconfig
+			sudo git config --system alias.st  status #将 git status 起别名 git st
+			sudo git config --system alias.ci commit#将 git commit 起别名 git ci
+		b.	当前用户 全局配置 保存在 /home/sofar/.gitconfig 
+			git config --global alias.co checkout
+			git config --global alias.br branch
+	(3) 设置 输出开启颜色显示
+		git config --global color.ui true
+	(4)当没有指定 --global 和--system 时， 配置将保存到 .git/下的 config文件
+		
+	git 三个配置文件 分别为 版本库级别(.git/) 全局配置文件(/home/sofar/.gitconfig) 系统级别配置(/etc/gitconfig)
+		优先级依次 从大到小			
+	(5) 配置git 提交信息编辑器： 默认为 nano:
+		git config --global core.editor vim
+2.初始化 版本库： 该初始化操作是 在本地 初始化版本库
+		git init [dir] 可以指定 版本库 对应的工作区目录，当没有指定时，将以当前目录为版本的工作区目录
+			当指定后，将在当前目录下创建该目录，并在目录下新建一个 .git/ 目录
+		当在git 工作区的某个子目录下执行操作时， 会在工作区目录向上递归查找 .git 目录
+		该.git/ 目录 就是工作区对应的版本库， .git所在的目录就是 工作区的根目录
+			其中 .git/index 记录了 工作区文件的状态（实际上 是暂存区的状态）
+		若在 非 git 工作区 执行 git 命令时，将会因为没有找到 .git 目录而报错
+
+3.添加文件到版本库：
+		echo "Hello" > welcome.txt
+		git add welcome.txt	
+		提交 更改 到 本地版本库
+		git commit 		 	
+		将打开编辑器 填写 提交说明 ，可以  -m 指定：git commit -m "添加"
+	(1)查看版本控制中的文件：
+		git ls-files
+	(2) 在每次提交前 需先调用git add 添加， 若在调用git add 后 再对文件进行了修改
+			则再执行 git commit 提交时，只提交git add 前的修改，而不会提交之后的修改	
+	(3)移动文件（重命名）
+		git mv test.txt  test2.txt  
+		git commit
+		将 test.txt 命名为test2.txt ， 工作区、暂存区、版本库中都会受到影响
+		当 工作区已修改了 test.txt 内容，而没有进行git add,  在提交后则 test2.txt
+		仍会保留 原来的修改 和 工作区与暂存区的差异
+	(4)删除文件
+			git rm file  删除工作区 和暂存区 指定的文件
+			可通过 git status 查看文件删除状态
+			当工作区已修改了该文件， 则需使用 git rm -f file 强制删除
+			此时 版本库中的文件没有删除
+			git commit  提交 后，该文件将不会在版本控制中
+			git rm --cached file  删除 暂存区的文件 但不会删除工作区的文件
+	
+	(5)修改刚提交 ： 当刚提交时，没有添加某些文件 或修改提交信息
+			 可在 git add 重新添加修改后的文件，在提交，并加上 --amend
+			 git commit
+			 git add file
+			 git commit --amend
+			 上面的三条命令最终只是产生一个提交，第二个提交命令修正了第一个的提交内容。
+
+			任何已经提交到 Git 的都可以被恢复。即便在已经删除的分支中的提交，或者用 --amend 重新改写的提交，都可以被恢复。
+			所以，你可能失去的数据，仅限于没有提交过的，对 Git 来说它们就像从未存在过一样
+4.git 暂存区：
+	(1) 查看提交日志：
+			git log 可以添加 --stat  查看每次提交的文件变更统计
+			git log --pretty=oneline 每次提交信息显示一行
+	(2)提交 修改：
+			必须先 执行 git add 将要提交的文件 添加，然后再执行 git commit 进行提交
+					
+			否则会提示  修改尚未加入提交
+	(3)查看文件状态：
+	
+			git status
+			输出
+							尚未暂存以备提交的变更：
+				  （使用 "git add <文件>..." 更新要提交的内容）
+				  （使用 "git checkout -- <文件>..." 丢弃工作区的改动）
+
+					修改：     welcome.txt
+
+			git status -s  显示 文件是否修改：
+			输出 	M welcome.txt
+				其中 M 标记为已修改
+	(4)查看工作区的文件 和 git 暂存区 的差异： （添加nice to meet you）
+			git diff	
+			输出：
+			diff --git a/welcome.txt b/welcome.txt
+			index ce01362..dd6d6d6 100644
+			--- a/welcome.txt
+			+++ b/welcome.txt
+			@@ -1 +1,2 @@
+			 hello
+			+nice to meet you
+					
+		并不是 与 本地版本库中的文件进行比较，
+		当执行了 git add welcome.txt ,表示将修改后的文件保存到 暂存区， 
+		此时 git diff 将 没有输出
+		当在工作区新建一个文件时，git diff 将不会显示该 文件的 差异信息
+	(5)查看 工作区文件 与 本地版本库文件 差异：
+		git diff HEAD
+		输出：
+			diff --git a/welcome.txt b/welcome.txt
+			index ce01362..dd6d6d6 100644
+			--- a/welcome.txt
+			+++ b/welcome.txt
+			@@ -1 +1,2 @@
+			 hello
+			+nice to meet you
+		
+		此时查看文件状态： git status
+				输出：
+					位于分支 master
+					要提交的变更：
+					  （使用 "git reset HEAD <文件>..." 以取消暂存）
+
+						修改：     welcome.txt
+
+	(6)查看 暂存区 与 本地版本库文件 差异：
+			git diff --cached 
+			或 
+			git diff --staged	
+		输出：
+			diff --git a/welcome.txt b/welcome.txt
+			index ce01362..dd6d6d6 100644
+			--- a/welcome.txt
+			+++ b/welcome.txt
+			@@ -1 +1,2 @@
+			 hello
+			+nice to meet you
+	(7)在执行 git status  或 git diff 命令时，会根据 .git/index 记录的工作区文件 时间戳、长度等信息是否改变
+		若改变，则会读取文件内容 判断是否改变，并将新的时间戳 更新到 .git/index文件中，方便以后比较文件是否修改的判断
+		.git/index 实际 包含了文件索引的目录树，记录 文件名和文件的状态信息
+		而 文件内容保存在 git 对象库 .git/objects 目录中，
+		文件索引 建立了 文件和对象库	中对象实体之间的对应
+		
+		当执行 git add ,将更新暂存区 中的目录树，并将 修改的文件内容写入到对象库中的一个新的对象，
+			该对象ID将记录在暂存区的文件索引中
+		当执行 git commit,  暂存区的目录树会写入到版本库（对象库），
+				master分支 的目录树将指向的提交时的暂存区的目录树
+		当执行 git reset HEAD, 暂存区的目录树将被 master 分支 指向的目录树所替换，不会影响工作区
+			 git reset HEAD^ 暂存区的目录树被 master 分支的HEAD 指向的提交的前一次提交的目录树替换，不会影响到工作区
+			 git reset HEAD~3 暂存区的目录树 被 master分支 的HEAD 前3次提交的目录树替换，不会影响到工作区
+			 	即 版本库中的 commit 对象 指向标识依次为 HEAD HEAD^ HEAD~2 HEAD~3 ...
+			 git reset --hard HEAD 将会影响到工作区，工作区没有提交的修改将被清空
+			 git reset --hard HEAD^ 将 master 分支 重置到上次提交的状态，并影响到 工作区和暂存区
+			 git reset --hard 1af03	 将 master 分支 恢复到指定的提交 ID 状态，并影响到 工作区和暂存区
+			 	 	可以通过 git log --oneline 显示 提交的日志和每次提交的 commit对象ID 和提交信息
+			 	 	
+			 当 使用 git reset 重置 提交状态时，也会影响到 提交日志，即 通过 git log 将只显示当前提交及之前的提交日志
+			 若要恢复 重置前的状态，可以通过 
+			 	git reflog	show master 
+			 	输出：
+			 	1af0319 master@{0}: reset: moving to 1af0
+				6a4a920 master@{1}: commit: test.txt
+				c598d68 master@{2}: reset: moving to HEAD^
+				5615bfa master@{3}: commit: test
+				c598d68 master@{4}: commit: 修改 welcome.txt
+				1af0319 master@{5}: commit (initial): 新文件： welcome.txt
+	 		然后通过 git reset --hard master@{3} 恢复重置前的状态,同时 提交的日志也会恢复
+	 			
+	 		git reset --soft HEAD^ 将 本地版本库，恢复上次的提交， 但不影响暂存区和工作区
+	 				此时 上次的提交 的内容仍在 暂存区，不需要 重新 git add
+	 				而 省略 --soft 则，需重新 git add 	
+		当执行 git rm --cached <file>, 直接从暂存区删除 文件，不会影响工作区
+		
+		当执行 git checkout . 或 git checkout <file>, 将 暂存区全部文件或指定的文件 替换工作区文件
+				若工作区中有没有添加到 暂存区的修改时，将被清空, 但不会修改暂存区中没有提交的修改
+				当指定<file> 时，为避免文件名与分支或命令冲突，可以添加-- 前缀
+				git checkout -- test.txt 
+		当执行 git checkout HEAD . 或 git checkout HEAD <file>, 将 HEAD指向的 master分支全部文件或指定的文件替换工作区文件
+				若工作区中有没有添加到 暂存区的修改 或暂存区中没有提交的修改，将被清空	
+				
+				git checkout [commit] [. 或<file>] 
+				当没有指定 .或<file>  则 不会进行覆盖 工作区中的文件，只是对当前的工作区进行检查，输出 修改的文件
+			  	
+			  当指定了. 或 <file>,则	当没有指定[commit], 则将 暂存区全部文件或指定的文件 替换工作区文件
+			  	当指定了 [commit] 则 将该提交的对象 中 的 blob 对象 的状态 覆盖 工作区文件 和暂存区，
+				但不会影响到 工作区和暂存区 中 没有在 本地版本库中有记录日志的文件						
+			   git checkout [branch] 切换分支
+			   	在切换分支时， 若在该当前分支 中提交过修改后，则在版本库中的提交的修改的文件 的blob对象将与原blob对象不同 
+			   	因此
+			   	若对提交过的修改的文件又进行了修改，而没有提交该修改时，
+			   	则会在切换时报错，必须先提交该修改，再进行切换分支
+			   	而在之后的切换过程中，由于版本库中 该文件的blob 对象已保存了修改，因此必须保证该文件的修改 已提交		
+					git log --oneline
+					输出：
+						5615bfa test
+						c598d68   修改   welcome.txt
+						1af0319         新文件：   welcome.txt
+					查看当前分支：
+					git branch -v 
+					输出：
+						* master 5615bfa test
+			
+					将 HEAD 指向一个 commit 对象	
+						git checkout c598d
+					此时会修改 welcome.txt 文件，但不会影响 新建的 test2.txt test3.txt文件
+					
+					cat .git/HEAD
+					输出：  c598d68acab10d14cb242ad5b0d45e35383c46cf
+					即 此时 HEAD 指向 c598d commit对象
+					git reflog -1
+					输出：
+						c598d68 HEAD@{0}: checkout: moving from master to c598d
+					比较 HEAD 和master 分支：
+						git rev-parse HEAD master	
+					输出：
+					c598d68acab10d14cb242ad5b0d45e35383c46cf
+					5615bfae200435b31189965704b1e95e58146f44
+					即 master 分支 的最新提交 的commit 对象没有改变
+					
+					提交修改：
+						git add test2.txt
+						git commit -m "分离头指针"
+					cat .git/HEAD
+					输出：
+						76aa58935d81c330a68b4674f77f5ed5d6b8c363
+					即 一个新 commit 对象
+					该提交对象 并没有处于 任何分支， 即没有被分支跟踪，因此不能永久存在
+					切换到 master 分支， 即将 HEAD 指向 master分支：
+					git checkout master
+					此时  新建的 test2.txt 不存在，但 test3.txt 存在
+						提交的日志也没有 刚提交的记录
+					将提交的commit 对象 合并到当前分支	
+						git merge 	76aa589
+					此时 test2.txt 恢复到工作区和暂存区	
+					查看：
+						git log --oneline
+					输出：
+							cf7e7ed Merge commit '76aa58'
+							76aa589 分离头指针
+							5615bfa test
+							c598d68   修改   welcome.txt
+							1af0319         新文件：   welcome.txt	
+					即 生成一个新的提交 commit 对象	
+			git checkout -- welcome.txt 会清空工作区 的welcome.txt 的修改						
+		
+5.git 对象：
+	(1) 查看 日志提交 详细信息	
+			git log -1 	--pretty=raw
+		输出：
+			commit c598d68acab10d14cb242ad5b0d45e35383c46cf
+			Author: sofarther <794630531@qq.com>
+			Date:   Sun May 14 10:55:16 2017 +0800
+
+				  修改   welcome.txt
+
+			commit 1af031955ad7a347b03a3673f1d1e7cdcb3cb81c
+			Author: sofarther <794630531@qq.com>
+			Date:   Sun May 14 09:57:20 2017 +0800
+
+					新文件：   welcome.txt
+	(2)根据 commit 对象ID 查看 对象的类型：
+			git cat-file -t c598d  # 没有必要把 40位ID 写全，只要前几个不冲突即可
+			输出：
+				commit
+	(3)根据 commit 对象ID 查看 对象内容：
+			git cat-file -p c598d
+			输出：
+			tree 5313f2996a91501b2e79e4a93476132904e4082e
+			parent 1af031955ad7a347b03a3673f1d1e7cdcb3cb81c
+			author sofarther <794630531@qq.com> 1494730516 +0800
+			committer sofarther <794630531@qq.com> 1494730516 +0800
+
+			  修改   welcome.txt
+			
+			其中：
+				tree 表示本次提交对应的目录树
+				parent 为 上次提交 的标识
+	(4)根据 tree 对象 ID ,查看 提交的文件内容：
+			a.获取 tree对象 保存的blob 对象
+			git cat-file -p 5313f
+			输出：
+			100644 blob dd6d6d6c4c00533b841fcbc2efc8e8ec98a855e8	welcome.txt
+			b. blob 对象获取提交的文件内容：
+			git cat-file -p dd6d	
+			输出：
+			hello
+			nice to meet you
+	(5) 通过分支版本库中 指定文件的内容：
+		 git cat-file blob HEAD:welcome.txt
+		 输出：
+		 	hello
+			nice to meet you
+				
+	(6)git 对象 保存的位置 ： .git/objects/ 下 git 对象ID 的 前两个字符 为 目录名， 后38 位为 文件名，	
+			 for id in c598 5313f dd6d; do 
+				ls .git/objects/${id:0:2}/${id:2}*; 
+			done
+	(7)分支： 
+		a.显示 分支：
+				git branch
+				输出：
+					*master # *表示当前的分支
+		b.获取分支 的提交日志信息：
+				git log -1 HEAD
+				git log -1  master
+				git log -1 refs/heads/master
+			输出相同：
+				commit c598d68acab10d14cb242ad5b0d45e35383c46cf
+				Author: sofarther <794630531@qq.com>
+				Date:   Sun May 14 10:55:16 2017 +0800
+
+					  修改   welcome.txt
+
+				commit 1af031955ad7a347b03a3673f1d1e7cdcb3cb81c
+				Author: sofarther <794630531@qq.com>
+				Date:   Sun May 14 09:57:20 2017 +0800
+
+						新文件：   welcome.txt
+		c.在 .git/HEAD  和 .git/ref/heads/master 文件中保存 最新的提交 ID
+				其中：
+					cat .git/HEAD
+					输出： ref: refs/heads/master
+					cat .git/ref/heads/master
+					输出	c598d68acab10d14cb242ad5b0d45e35383c46cf
+			目录 .git/ref 保存引用的命名空间
+				.git/ref/heads/ 下保存的引用 则是分支
+				分支 可以 通过 matser 和  ref/heads/master 表示	
+		d.获取 分支提交的ID
+					git rev-parse master
+					git rev-parse HEAD
+					git rev-parse refs/heads/master
+				输出：
+					c598d68acab10d14cb242ad5b0d45e35383c46cf
+				即分支提交的最新的 commit 对象ID	
+	(8) git 对象ID 哈希值 生成：
+	
+		a. commit 对象 ID ：
+				i查看 commit 对象： git cat-file commit HEAD
+					输出：
+						tree 5313f2996a91501b2e79e4a93476132904e4082e
+						parent 1af031955ad7a347b03a3673f1d1e7cdcb3cb81c
+						author sofarther <794630531@qq.com> 1494730516 +0800
+						committer sofarther <794630531@qq.com> 1494730516 +0800
+
+						  修改   welcome.txt
+				ii查看 输出的字符数：
+							git cat-file commit HEAD | wc -c
+						输出：227
+				iii 生成 哈希值：
+					#\000 为 null空字符
+					(printf "commit 227\000"; git cat-file commit HEAD) | sha1sum
+					输出：
+						c598d68acab10d14cb242ad5b0d45e35383c46cf  -
+				iv 查看 commit 对象ID：
+						git rev-parse HEAD
+					输出：
+						c598d68acab10d14cb242ad5b0d45e35383c46cf
+		b. blob对象 ID：
+				i 查看 提交的内容：
+						git cat-file blob HEAD:welcome.txt
+				ii 查看 提交内容字节数：
+						git cat-file blob HEAD:welcome.txt | wc -c
+					输出：
+						23
+				iii 生成 哈希值：
+						(printf "blob 23\000"; git cat-file blob HEAD:welcome.txt) | sha1sum
+					输出：
+						dd6d6d6c4c00533b841fcbc2efc8e8ec98a855e8  -
+				iv查看 blob对象ID：
+						git cat-file -p 5313f															  
+					输出： 
+					100644 blob dd6d6d6c4c00533b841fcbc2efc8e8ec98a855e8	welcome.txt		
+					
+6. 恢复进度：
+	(1)删除没有添加到暂存区的文件：
+			git clean -nd
+		将显示 要删除的 工作区中 多余的文件	
+			git clean -fd
+		删除 工作区中多余的文件	
+	(2)保存当前工作进度：
+		git stash save "说明"
+		保存 整个 当前的工作区和暂存区，若工作区存在 没有 git add 添加到暂存区的文件，则不会保存该文件
+		当保存后，会工作区将恢复修改前的状态（实际上是调用 git reset --hard HEAD 命令）
+		git stash list
+		显示 保存的工作进度 的列表
+		git stash pop <stash>
+		将当前的工作区和暂存区 恢复到指定的保存的进度， 当没有指定时则恢复到最新的一个，并删除该 保存的进度
+		git stash apply <stash>
+		将当前的工作区和暂存区 恢复到指定的保存的进度， 当没有指定时则恢复到最新的一个，并不会删除该保存的进度
+		git stash drop <stash>
+		删除 一个存储的进度，默认为最新的一个
+		git stash clear
+			删除所有的保存的进度	
+		
+		在保存一个工作进度后，当再次修改某个文件， 然后直接调用 git stash pop 恢复工作区时
+		将会报错 	，即本地的文件已修改，需先提交修改或 git stash save 保存当前进度
+			当执行提交后，
+				git add welcome.txt 
+				git commit -m "修改 welcome.txt"
+			再执行 git stash pop
+			此时会 出现 冲突 的警告，并将冲突的内容合并在 welcome.txt 中
+					hello
+					nice to meet you
+					<<<<<<< Updated upstream
+					rrr
+					=======
+					lll
+					>>>>>>> Stashed changes
+		
+		git stash save 会将 工作区和暂存区 都保存，因此工作区没有添加的修改和 添加到 暂存区的没有提交的内容，
+			在恢复该 进度后，仍然是该状态
+7.远程仓库：
+	克隆 远程仓库 到 当前目录：
+		git clone git://github.com/schacon/ticgit.git
+	(1)查看远程仓库：
+			git remote 列出每个远程库的简短名字
+			origin //Git 默认使用这个名字来标识你所克隆的原始仓库
+			
+			git remote -v 显示对应的克隆地址：
+			origin	https://github.com/sofarther/php.git (fetch)
+			origin	https://github.com/sofarther/php.git (push)
+			
+			git remote show [remote-name] 查看某个远程仓库的详细信息
+			 git remote show origin
+			 	远程 origin
+				  获取地址：https://github.com/sofarther/php.git
+				  推送地址：https://github.com/sofarther/php.git
+				  HEAD 分支：master
+				  远程分支：
+					master 已跟踪
+				  为 'git pull' 配置的本地分支：
+					master 与远程 master 合并
+				  为 'git push' 配置的本地引用：
+					master 推送至 master (最新)
+	(2)添加 新的远程仓库：
+		 可以指定一个简单的名字，以便将来引用
+		 git remote add [shortname] [url]
+		 git remote add pb git://github.com/paulboone/ticgit.git		
+	(3)从远程仓库中拉取数据：
+		a. git fetch [remote-name]
+			此命令会到远程仓库中拉取所有你本地仓库中还没有的数据,
+			并不自动合并到当前工作分支，只有当你确实准备好了，才能手工合并。	
+			git fetch pb 可以使用 别名
+		b.	git pull 命令自动抓取数据下来，然后将远端分支自动合并到本地仓库中当前分支
+		c.默认情况下 git clone 命令本质上就是自动创建了本地的 master 分支用于跟踪远程仓库中的 master 分支
+	(4)推送数据到远程仓库：
+		git push [remote-name] [branch-name]	
+		说明： a.克隆的服务器上有写权限
+			  b.若在推数据前，已经有其他人推送了若干更新，那推送操作就会被驳回。
+			   必须先把他们的更新抓取到本地，合并到自己的项目中，然后才可以再次推送。			
+8.分支：
+	分支，其实本质上仅仅是个指向 commit 对象的可变指针。Git 会使用 master 作为分支的默认名字。
+		每次提交后，有一个指向最后一次提交对象的 master 分支，它在每次提交的时候都会自动向前移动。
+		git保存着一个名为 HEAD 的特别指针，指向你正在工作中的本地分支的指针，来标识 当前工作区所处的分支
+	(1)创建分支：
+		git branch testing 在当前 commit 对象上新建一个分支指针
+		但不会自动切换到这个分支中去		
+	(2)切换到其他分支: git checkout testing	 
+		在切换分支时， 若在该当前分支 中提交过修改后，则在版本库中的提交的修改的文件 的blob对象将与原blob对象不同 
+	   	因此
+	   	若对提交过的修改的文件又进行了修改，而没有提交该修改时，
+	   	则会在切换时报错，必须先提交该修改，再进行切换分支
+	   	而在之后的切换过程中，由于版本库中 该文件的blob 对象已保存了修改，因此必须保证该文件的修改 已提交		
+	   	且在切换后， 会将切换后的分支中指向的 commit 对象中保存的 与之前分支 的commit 对象中的 blob对象 不同
+	   	文件的 blob 内容对 工作区和暂存区的覆盖
+	   	而对于 没有修改的 blob 对象 的文件则不会进行覆盖
+	   	当 原分支中 新建的文件 添加并提交的文件， 则在切换分支后，该文件将不存在
+	   	对于 已修改 而 没有提交的文件， 则由于 该文件的blob 对象没有修改，不会在切换时报错，
+	   		且 工作区文件不会被覆盖
+	(3) 分支合并：
+		a.	git merge 
+		在不同分支 中 提交了多次后， 分支之间指向不同的提交对象，此时将两个分支进行合并时，
+			则会 将以 分支的公共祖先的提交对象 和两个分支 的当前的commit 对象 进行合并
+			并将该结果 重新做一个新的快照，并自动创建一个指向它的提交对象，该提交对象 有两个parent 对象
+			分别为 两个分支 的 commit 对象
+		git merge master testing  将 testing 分支 合并到 master 分支
+		
+		b.合并冲突：
+			当 合并 的两个 都有提交对某个文件的修改，则在合并时会提示 有冲突
+			可通过 git status 查看 冲突的文件，
+			打开该文件后，冲突的位置 会进行标记：
+				hello
+				nice to meet you
+				rrr
+				<<<<<<< HEAD
+				mvvvvvv
+				=======
+				oooo
+				>>>>>>> hotfic
+			其中 <<<<<<<HEAD  ====== 之间 为当前分支的修改，
+				======= 	>>>>>>> hotfic 之间 为合并的分支的修改
+			解决冲突：
+				在 对冲突的文件 进行整理后，git add  添加该文件
+				表示 冲突已解决
+				再次 进行 git commit 提交	进行合并
+	(4)查看所有分支：
+		git branch
+		* hotfic
+  		  master
+  		  testing		  		
+		其中 * 表示 当前所处的分支
+		-v  可以显示 每个分支 的最后的提交对象 和提交信息 
+		git branch --merged  表示 当前 分支 已合并的分支
+		git branch --no-merged 表示当前分支 没有合并的分支
+		git branch -d 删除某个已合并的分支
+		对于没有 合并到当前分支 的 分支 可以通过 git branch -D 删除			 				

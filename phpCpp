@@ -1,0 +1,49 @@
+1.安装 PHP-CPP：
+	git clone https://github.com/CopernicaMarketingSoftware/PHP-CPP.git
+	make
+	sudo make install
+	 默认最新PHPCPP是只支持PHP7的，如果需要支持PHP5.X需要下载他的另外一个版本
+2.下载 一个空项目：
+	http://www.php-cpp.com/EmptyExtension.zip
+	解压后，目录下文件：
+		main.cpp  Makefile    yourextension.ini
+	(1)在当前目录下，定义c++ 函数：	
+	test.h
+		void my_func();	
+	test.cpp
+		#include <phpcpp.h>
+	  	#include <iostream>
+	   
+	   void my_func()
+	   {
+		   Php::out <<"hello this is test"<<std::endl;
+	   }
+	(2)在main.cpp 文件中引入test.h 头文件 和注册定义的c++ 函数：
+		#include <phpcpp.h>
+  		#include "test.h"
+		
+		extern "C" {
+					PHPCPP_EXPORT void *get_module()
+		 		    {
+		          // static(!) Php::Extension object that should stay in memory
+		          // for the entire duration of the process (that's why it's static)
+		          static Php::Extension extension("test", "1.0"); //设置扩展名
+		  
+		          // @todo   add your own functions, classes, namespaces to the extension
+		          extension.add<my_func>("my_func");
+		          
+		          return extension; // 返回 the extension
+		      	}
+
+		}   
+	 (3)编译：
+	 		make
+	 	 会在当前目录下生成 test.so, 将该文件放到php 扩展的目录下： /usr/lib/php/20151012/
+	 	 并在 	/etc/php/7.0/mods-available/ 下新建 test.ini 文件，
+	 	 然后分别在 /etc/php/7.0/fpm/conf.d/ 和 /etc/php/7.0/cli/conf.d/ 下创建软连接
+	 (4)测试：
+	 	php -m 查看是否有 test 扩展
+	 	然后在 php文件中直接调用定义的函数：
+	 		<?php
+	 			my_func();
+	 		?>	 

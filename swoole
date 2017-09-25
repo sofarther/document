@@ -1,0 +1,224 @@
+swoole有两个部分。 一个是PHP扩展，用C开发的，这是核心。
+	 另一个是框架，像yii、TP、Laravel一样，是PHP代码写的。
+swoole扩展本身提供了web服务器功能，可以替代php-fpm。 而如果仅仅用swoole框架，可以像其它PHP框架一样，运行在nignx、apache等web服务器中。
+swoole框架像PHP框架一样，适用于web开发，swoole框架依赖swoole扩展，是swoole扩展的应用实例
+而swoole扩展是提供了更底层的服务器通信机制，可以使用UDP、TCP等协议，而不仅仅是http。
+
+1.编译安装 swoole 扩展：
+	下载安装包：swoole-src-1.9.10.tar.gz， 解压，进入
+		执行
+			phpize
+			./configure --prefix=/usr/local/swoole
+			make 
+			sudo make install
+		安装成功后，swoole.so 位于 	/usr/lib/php/20151012/
+	然后在 /etc/php/7.0/mods-available/ 下 新建一个文件 swoole.ini
+		cat swoole.ini
+			extension=swoole.so
+	并在 /etc/php/7.0/fpm/conf.d 下创建连接文件：
+			sudo ln -s  /etc/php/7.0/mods-available/swoole.ini 20-swoole.ini
+	重启php-fpm:
+		sudo service php7.0-fpm restart	
+	此时可以通过 php-fpm 使用swoole扩展 ，在phpinfo() 页面显示 swoole扩展
+	但 不能在 cli 命令行中使用
+		通过 php -m 查看添加的扩展时，没有 swoole扩展
+	需要在 /etc/php/7.0/cli/conf.d/ 下创建连接文件
+			sudo ln -s  /etc/php/7.0/mods-available/swoole.ini 20-swoole.ini
+			
+2. swoole 框架：
+	 	(1)下载 框架源码：
+	 			https://github.com/matyhtf/framework
+	 		下载后解压到 服务器目录
+	 	(2)此时不能直接运行，需使用 composer 下载依赖包：
+	 		 php composer.phar install
+	 		在该项目目录下 会生成一个 vendor 目录，依赖包 和自动加载依赖包文件 保存在该目录下	
+	 		
+	 	(3)路由解析：
+	 	在 Swoole 的构造函数中 调用 Swoole\Swoole 的addRouter()
+	 	默认添加了2个路由器Swoole\Router\Rewrite和Swoole\Router\MVC
+	 	并调用 Swoole\Swoole 的router(array($this, 'urlRoute'))
+	 	将Swoole\Swoole 的urlRoute() 方法作为路由解析的方法
+	 	
+	 	路由器是按照顺序进行处理的，如果第一个路由器未命中，则会继续传递给下一个路由器进行处理。
+	 	如果当前的路由器命中了规则，返回了controller和view，将自动中止路由流程，开始执行Contoller的逻辑
+	 	路由器 在 Swoole\Swoole 的 urlRoute() 方法 中通过 $_SERVER['REQUEST_URI'] 进行路由匹配	
+	 	其中先调用 Swoole\Router\Rewrite 对传入的 $uri 参数进行 路由规则匹配，
+	 		每个路由规则定义形式为 ['regx'=>'路由正则表达式',
+	 							'mvc'=>['controller'=>'控制器名',
+	 										'view'=>'视图名'
+	 									],
+	 							'get'=>'参数名1,参数名2'		
+	 											
+	 						]
+	 			其中 regx 指定的正则表达式匹配到的 子模式 分别作为 get指定的 参数名1、参数名2 的参数值
+	 				 并赋值的到$_GET,作为请求参数,
+	 				 当regx 正则表达式 中子模式 和 get 指定的参数个数不匹配时，只会对get指定 和regx正则表达式
+	 				 子模式匹配的 参数进行赋值
+	 			最后返回 mvc 指定控制器和视图
+	 			
+	 	若所有规则不匹配则返回false, 将调用 Swoole\Router\MVC 对传入的 $uri 参数进行解析								
+	 		将/作为分隔符 将 $uri 分隔为数组，第一个元素为控制器名，第二个元素为视图
+	 		并将 ['controller'=>'控制器名','view'=>'视图名'] 返回
+	 	若$uri 分隔为数组 中有第三个元素，则 
+	 		若该元素为 数字，则将 ['id'=>元素] 添加到 
+	 	 		\Swoole::$php->request 的 get属性中
+	 	 如 http://local.swoole.com/page/detail/111
+	 	 	Swoole::$php->request->get 属性值为 array(1) { ["id"]=> string(3) "111" }
+	 	 			
+	 	 	否则 
+	 	 		先设置 Tool 的$url_key_join参数名/值连接符 和 $url_param_join 参数连接符 为-
+	 	 		然后将该元素 调用 Tool::url_parse_into(), 进行解析
+	 	 			在该方法中，当$url_key_join 和$url_param_join 相同时，直接使用该连接符进行分隔为数组
+	 	 			该数组中索引为偶数 为参数名，奇数为参数值
+	 	 			添加到 
+	 					\Swoole::$php->request 的 get属性中
+	 	然后在Swoole\Router\MVC  中将\Swoole::$php->request 的 get属性 赋值为$_GET
+	 	如：http://local.swoole.com/page/detail/name-sofar-passwd-123456 将调用apps/controllres/Page的detail
+	 		Swoole::$php->request->get 属性值为 array(2) { ["name"]=> string(5) "sofar" ["passwd"]=> string(6) "123456" } 		
+	 	(4) 配置 nginx 服务器：
+	 			由于在 swoole框架中，
+	 				在libs/Swoole/Swoole.php 中 的urlRoute() 方法中
+	 			路由规则 是通过 $_SERVER['REQUEST_URI'] 进行路由匹配的
+	 			 即 如 localhost/swoole/index.php
+	 			  将解析为 c=swoole  v=index.php
+	 			因此 需在 nginx 为 swoole框架所在的目录配置主机域名
+	 			  #swoole 框架配置
+					     server{
+					         listen 80;
+					         root /home/sofar/public_html/swoole;
+					         index index.php index.html;
+					         server_name local.swoole.com;
+					 
+					         location / {
+					 
+					             if (!-e $request_filename) {
+					                 rewrite ^/(.*)$ /index.php;
+					             }
+					         }
+					 
+					         location ~ \.php$ {
+					
+					             #fastcgi_pass 127.0.0.1:9000;
+					             fastcgi_pass    unix:/run/php/php7.0-fpm.sock;
+					             fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_nme;
+					             fastcgi_index  index.php;
+					             include fastcgi_params;
+					         }
+					}
+				其中的 重写规则为 	 rewrite ^/(.*)$ /index.php;
+					重写规则不会修改  $_SERVER['REQUEST_URI'] 的请求路径，而只是定位到 					           
+	 						/home/sofar/public_html/swoole/index.php 文件，进行处理请求
+	 		默认的控制器为page 视图为 index ,定义在 libs/Swoole/Swoole.php 的$default_controller 静态属性
+	 		该属性在 libs/Swoole/Router/MVC.php 中使用
+3.配置文件读取：
+		 Swoole\Config 继承 \ArrayObject(该 ArrayObject 为php 内置的ArrayObject ,不是 \Swoole\ArrayObject)
+		  当该对象使用数组的形式访问时，将会调用offsetGet($index) 方法，返回指定的索引的值
+		  当对象数组形式 设置值时，将会调用 offsetSet($index, $newval) 
+		  但当使用 属性的形式访问时，则不会调用offsetGet($index) 和 offsetSet($index, $newval) 
+		  在 Swoole\Config 的offsetGet($index) 方法中，
+		  		先判断 $config属性中，是否存在 $index 键名 的值，若不存在，则调用 load($index) 方法
+		  					加载 $index 指定的配置文件，
+		  			在 load($index) 方法中，
+		  					遍历$config_path 属性的数组，判断每个配置目录下 是否存在 $index.'.php'文件，
+		  					当存在时，调用 include 引入该配置文件，并将该配置数据作为键值，以 $index作为键名
+		  					保存到 $config 属性数组中
+4.加载顺序：
+	(1)在 index.php 文件中
+	
+		define('WEBPATH', __DIR__) PHP程序的根目录
+		先require __DIR__.'/vendor/autoload.php'; 引入第三方包自动加载文件
+		然后require __DIR__ . '/libs/lib_config.php'; 引入 配置文件
+			在libs/lib_config.php 中
+				先引入 libs/Swoole/Swoole.php 和 	libs/Swoole/Loader.php
+				然后调用 Swoole\Loader::addNameSpace() 将 libs/Swoole 目录注册为 Swoole 命名空间的根路径
+				并 将 Swoole\Loader::autoLoad() 注册为类的自动加载方法
+				然后 定义全局变量 $php, 并调用Swoole::getInstance()
+					在该方法中 当 Swoole::$php为null 时，
+						 将初始化 Swoole对象，并将该对象 赋值到Swoole::$php静态属性	
+						  然后返回 Swoole::$php 对象	  
+			
+			然后在 lib_config.php 中定义一个全局函数：
+					createModel() model()	table() session()  debug()
+					error() swoole_error_handler()
+		其中 Swoole 类并没有定义在 Swoole 命名空间中	而是在顶层命名空间						
+	 最后调用 Swoole::$php->runMVC() 方法	 			
+	
+	(2) 在 Swoole 构造函数中：
+			定义APPSPATH 常量为 WEBPATH . '/apps',并赋值到 Swoole::$app_path
+			然后将 Swoole::$app_path 注册为 App 命名空间的根路径
+			初始化 $load $model $config 属性：
+				Swoole\Loader  Swoole\ModelLoader  Swoole\Config
+				并调用 Swoole\Config 的setPath() 将Swoole::$app_path/configs 添加到配置文件目录				 						在该方法中 将配置文件目录添加到 Swoole\Config 的$config_path 属性的数组中
+				
+				调用 Swoole 的addRouter()
+	 				默认添加了2个路由器Swoole\Router\Rewrite和Swoole\Router\MVC
+	 		在 Swoole 的addRouter() 方法中 调用 Swoole 的addHook() 方法
+	 			参数为 (Swoole::HOOK_ROUTE, array($router, 'handle'), $prepend)
+	 			即 将 路由器类定义的 handle() 方法作为路由解析的处理方法
+	 		在 addHook() 方法中
+	 			将第一个参数为键名，键值为数组，将第二个参数保存到 该数组 中，
+	 						当$prepend 为true时，表示插入，	否则为追加
+	 			将该键名/值 保存到 $hook 属性中
+	 				
+	 		调用 Swoole\Swoole 的router(array($this, 'urlRoute'))
+	 			将Swoole\Swoole 的urlRoute() 方法作为路由解析的方法
+	 		在router() 方法中 将传入 的回调函数 赋值到 router_function属性中
+	 		
+	 (3)Swoole 的rumMVC() 方法：
+	 		在该方法中 ，先判断 Swoole 的 $request 为空时，将实例化 Swoole\Request类对象，并赋值到 $request属性
+	 			然后调用 Swoole\Request 的 initWithLamp() ，
+	 				在该方法中 将	$_GET  $_POST $_COOKIE  $_SERVER $_REQUEST
+	 					分别赋值到 Swoole\Request 的 get post cookie server request 属性
+	 		然后调用 Swoole 的router_function 属性指定的 路由解析回调方法，并返回 解析后的控制器和视图
+	 				返回的形式为 ['controller'=>'控制器','view'=>'视图','directory'=>'子目录'
+	 								'param'=>'参数'
+	 							]
+	 				
+	 				当指定了 directory 时，表示在 apps/controllers/下的 directory 指定的子目录下类文件
+	 					该类的命名空间 为\App\Controller\directory（首字母大写）,
+	 				否则将创建 \App\Controller\控制器 类对象
+	 		若 该类没有引入时，将引入该类定义的文件，
+	 		然后创建 该控制器类对象
+	 			然后调用 method_exists($controller, $mvc['view']) 判断 该类对象是否有视图指定的方法名
+	 			若不存在则抛出 404异常
+	 		然后调用 Swoole 的 callHook(self::HOOK_BEFORE_ACTION) ，
+	 			在该方法中 判断 $hooks属性 中 是否存在的指定的类型 的回调函数，当存在时，将调用该回调函数
+	 		然后 判断 控制器中 是否存在__beforeAction 方法，若存在则调用该方法,并将 解析的控制器和视图 数组信息传入
+	 		然后 调用 视图指定的方法 并传入 param 指定的参数，并保存该方法的返回值
+	 			该返回值将作为 结果输出
+	 		然后 判断 控制器中 是否存在__afterAction 方法，若存在则调用该方法，并将 该返回值作为参数传入
+	 									 
+	 		然后 调用 Swoole 的 callHook(self::HOOK_AFTER_ACTION);
+	 		最后判断 是否为ajax , 可以通过 设置 Swoole\Controller 的is_ajax 为true 表示为ajax请求
+	 				当为 ajax时，将 对 返回值 进行 json_encode()
+	 		当为 swoole服务器模式下 时,将 返回值返回
+	 			当为 apache 或nginx 服务器时，将 返回值 返回
+	 				否则 将使用 echo 输出 返回值
+5.Swoole\Object 除 Swoole 类，其他类的 继承 Swoole\Object类
+	 在该类中 定义
+	 	__get($key) 
+	 		返回 当前对象 的 swoole 属性(保存的 Swoole 类对象) 的 $key 属性
+	 	__call($func, $param)
+	 		调用 当前对象 的swoole 属性(Swoole 类对象) 的 $func 方法		
+6.Swoole类 ：
+	(1) 加载模块：
+		在 Swoole 定义的  __get($lib_name)方法
+				当访问 的Swoole  的属性 不存在时，将在该方法中调用
+					Swoole 的loadModule($module, $id = 'master')，
+						在该方法中，将 $module . '_' . $id; 作为键名
+							判断 Swoole 的 objects 属性 的数组是否存在该键名
+							若不存在，则
+								先判断当前应用下的 factory/下 是否存在 $module . '.php' 文件
+									若存在， 调用require 引入该文件
+									若不存在，则判断 libs/下的 factory/ 下是否存在   $module . '.php' 文件
+									若存在， 则调用 require 引入该文件
+									否则 抛出异常
+							最后将 引入的文件的结果 作为键值 ，以 $module . '_' . $id作为键名 保存到$objects属性中
+				并返回 引入的文件的结果 并将该结果赋值到 Swoole 的 $lib_name 属性中						
+7.Swoole\Controller 继承 Swoole\Object(而不是 php 内置的 Object)
+		控制器 的$tpl属性，通过 调用 Swoole 对象的__get() 方法，来引入 libs/factory/tpl.php 文件
+			在该文件中创建 Swoole\Template 对象， 该类继承 Smarty 类						 	 						
+				并 返回该对象
+		故可以在控制器中使用 $tpl 属性进行模板分配和显示
+		也可以直接调用 控制器的 assign() 和display()
+		使用 php文件作为 模板											

@@ -1,0 +1,329 @@
+1.概念：
+
+	(1)原子：列表中 由空格分割， 在列表操作中，原子是不可分割的
+		主要有 数字 符号 使用"" 的字符串
+	(2)列表： 由() 和空格分割的原子、其他列表 组成的
+		Lisp 中数据和程序以相同的方式表示，即列表
+		列表中的用于分割的 空格数任意，也可以是换行符
+	(3)执行lisp 程序：
+		(+ 2 2) 将光标移动到) 后 C-x C-e 在回显区显示执行结果 4
+		'(this is a quote list) 
+			将光标移动到) 后 C-x C-e 在回显区显示'后的内容
+		若去掉( 前的' ,将this 作为函数执行，则会报错	
+	(4)Lisp 解释器 
+		a.基本的执行过程：
+			I.先查看列表前是否有单引号，若有则解释器输出该列表
+			II.若没有，则先查看列表的第一个元素，并判断是否为一个函数定义
+				若是，则执行该函数的定义指令 否则报错
+		b.复杂形式：
+			I. Lisp 解释器可以直接对一个符号求值，该符号不能被()包围
+					将该符号作为一个变量处理
+			II.特殊表，用于特殊的执行指令，如定义函数等
+			III. 列表嵌套，Lisp会先解释处理内部列表，再处理外部列表
+		c.字节编译：
+			Lisp 解释器 可以解释两种输入数据： Lisp代码 和编译后的字节编译的代码
+			 可以通过 编译指令将Lisp代码编译为字节编译的代码，以 .elc 为扩展名
+			 .el 为可阅读的Lisp代码
+	(5)求值： Lisp 在完成表达式求值后，几乎总会返回一个值，
+			 Lisp在求值时，除了会返回值外，可能带有附带效果
+	(6)变量：  
+			a.当将一个符号、数字、列表或字符串 赋值到一个符号上，该符号即为变量
+				一个符号可以同时具有一个函数的定义和一个值
+				例：
+					fill-column C-x C-e
+						 fill-column 作为变量处理 输出 70
+					(fill-column) C-x C-e
+						 fill-column 作为函数处理，而没有定义该函数，而报错
+			b.设置变量值：
+				I (set 变量名 值)	
+					set 函数 将 值 返回， 附带效果为 将该值赋值到变量名
+				当变量名 和值以' 开头时，则不会对该变量名和值进行解释
+				 (set 'flowers '(rose voilet daisy buttercup))
+				 flowers 输出 (rose voilet daisy buttercup)
+				当 没有以' 开头时，则会对变量 和值进行解释
+					(set 'flowers 'fill-column)
+						将flowers 设置 为fill-column 字符串
+ 						(set flowers 80)
+ 						对flowers 变量值进行解析，即fill-column ，并将该返回值作为变量名
+ 						因此对 fill-column 变量赋值为 80
+ 					其中 'fill-column 不能为'(fill-column) 或"fill-column"	 	
+ 				II (setq varname1 value1  varname2 value2 ...)
+ 					setq 变量名自动带有'开头， 且可以一次对多个变量赋值， 返回结果为最后变量的值 			 
+				当在函数中使用 set 或setq 设置变量时，该变量名在全局可见，
+					若该变量在全局定义，则会修改该变量值
+				III. let((变量名/值 列表) 函数体)
+						由两部分组成，其中 (变量名/值 列表) 
+							当指定变量值时需使用 (变量名 值)
+								且变量值可以为表达式
+								(defun t (a)
+								  
+								  (let ( (x  (+ a 100))
+								  
+								  		)
+								  
+								   (message "x=%d" x) )
+								 
+								  )
+							当没有指定变量值时，则 变量名
+						let(((a 100) m n) (message "complete"))
+					当在函数中使用 let 设置变量时，该变量名 为局部变量,且只能在(let () 函数体)
+					中的函数体中使用，而不能在let 外使用	
+							
+	
+	(7)参数类型：
+			
+		(substring "The quick brown fox jumped" 16 19)
+			substring 将传入的字符串原子 进行分割，
+				16表示开始的索引，19表示结束的索引位置，但不包括该位置上的字符
+				索引从0 开始 输出 fox
+		对变量执行运算	
+		(+ 2 fill-column)
+			输出 72
+			
+		(concat "The"  (+ 2 fill-column) " red fox")
+			concat 接受 字符串类型，(+ 2 fill-column) 返回的是数字
+			因此会报错 ，提示可接受的类型，需使用 number-to-string 将数字类型转为字符串类型
+		(concat "The " (number-to-string (+ 2 fill-column)) " red fox" )
+	(8) + - * / concat 可接受任意参数
+		(+)   输出 0	
+		(*)   输出 1
+		(+ 3) 输出 3
+		(* 3) 输出 3
+		(+ 4 5 6 7) 输出 22
+		
+		(* 4 5 6 7)   输出 840
+		(- 20 4 3)
+ 		(/ 100 2 5 4) 输出 2 即整除结果，不会返回小数部分	
+ 	(9)	message() 在回显区显示指定信息， 可以通过 %s %d 拼接字符串和数值
+ 			  (message "There are %d %s in the office!"
+        				  (- fill-column 14)
+        				   "pink elephants"
+          		)	
+ 2. 缓冲区 操作：
+ 	(1) 获取缓冲区 名和该缓冲区关联的文件名：
+ 			在当前缓冲区输入：
+ 				(buffer-name) 获取缓冲区名 file5
+ 				(buffer-file-name) 获取缓冲区关联的文件名  /home/sofar/emacs/file5  
+ 			当为scratch 缓存区时， 则(buff-file-name) 返回 nil
+ 		获取当前缓冲区：
+ 			(current-buffer)
+ 				输出 #<buffer *scratch*>
+ 		其他缓冲区：
+ 			(other-buffer)
+ 				输出 #<buffer file5>		
+ 	(2)切换到其他缓冲区：
+ 			(switch-to-buffer (other-buffer))
+ 			switch-to-buffer 将当前窗口显示的内容切换到另一个缓冲区，
+ 				并调用 set-buffer 将	emacs 焦点切换到另一个缓冲区
+ 					set-buffer 不会修改屏幕显示的缓冲区
+ 	(3)缓冲区大小 和当前光标的位置
+ 		(buffer-size) 返回当前缓冲区的字符数 包括空格和换行符， 汉字视为一个字符
+ 		(point) 缓冲区首字符到当前光标的字符数								     				 		 
+3. 函数：
+	(1)函数定义：
+		(defun 函数名 (参数列表)
+			"函数描述"
+			(interactive "option") 
+			(函数体)
+		) 
+		其中 
+			a.函数描述 和(interactive ) 可选
+				当指定 interactive， 表示可以交互式调用该函数
+				调用形式：
+					C-u <数值参数> M-x 函数名
+					其中参数只能为数字形式
+				其中 "option" 表示interactive 预定义的字符
+					"p" 表示 C-u 后输入的内容 并转为数值 作为为调用该函数的参数
+					"P"表示 C-u 后输入的内容 作为为调用该函数的参数
+					"r" 表示将 当前选择的区域的开始位置和结束位置作为参数
+							当没有选择区域时，则表示当前光标位置到缓冲区结束位置
+					"B" 表示 提示输入缓冲区的名字， 并将用户的输入作为参数
+							可以在B后指定提示字符，并以\n 结束
+					"n"表示输入数字， 可在n 后指定提示字符，并以\n 结束
+					"s"表示输入字符串 可在 s 后指定提示字符，	并以\n 结束	
+			b.参数列表：
+					可选参数 &optional 该关键字后的参数为可选参数，默认值为nil
+					(defun (a b &optional c d)
+						(list a b c d )
+					)
+					c 和d 为可选参数
+					剩余参数 $rest 该关键字前的已接受的参数的剩余参数全部赋值到
+								该关键字后的第一个参数
+					(defun test2 (a b &rest c  d)
+					  (list a b c d)
+					)
+					执行：
+						(test2 11 12 13 14)
+						输出：
+							(11 12 (13 14) nil)
+			
+							
+				
+	(defun test(buffer start end)
+       (interactive "BAppend to buffer: \nr")
+       (message "buffer:  %s, start:%d, end:%d " buffer start end)
+	)
+		说明：
+			a.指定多个预定义字符时，使用\n 进行分割, 参数按照指定的预定义字符顺序传入
+				因此形参列表也必须按照预定义字符顺序定义
+			b. 使用交互式调用函数时，函数的执行结果默认不会显示在回显区，
+				若需要在回显区显示结果，则需使用message 函数
+			c. message 函数 直接调用时，字符串会显示""
+					而在函数中调用时，则不会显示"",只显示文本内容
+			d.注释： 使用; 开头，;后到换行符结束都为注释内容
+	(2) 安装函数定义：
+			在定义函数后需进行安装该函数，才能调用该函数：
+				在函数定义结尾执行C-x C-e
+			在任何缓冲区内都可以调用该函数
+			若需修改该函数定义，则重新定义该函数，再次执行安装函数即可
+			该形式安装时，在再次启动emacs 时，则会失效，
+			若要永久安装，则需放到.emacs 文件中在启动时加载
+	(3)	调用函数：
+		  a. 输入 (函数名 参数) C-x C-e
+		  b. 交互调用 C-u 数值参数 M-x 函数名
+		(defun multi-by-seven (num) ;interactive version
+			  "Multiply Number by seven"
+			  (interactive "p")
+			  (message "The resullt is %d" (* num 7)) 
+ 		 )
+ 		 直接调用形式：
+ 		 (multi-by-seven 5)
+		c.接受用户的输入作为参数：
+			a.(interactive "string"):
+				其中第一个字符表示接受的类型：n表示数值 s表示字符串
+					I. (defun show (s)
+
+		 			 (interactive "nsEnter your name: " s)
+		  			(message "s:%s" s)
+		  		)
+		  		说明：n表示输入数值类型，若没有输入数值，则会提示错误，并重新输入
+		  			s 则不会作为类型输入判断， 而作为输入提示文本内容显示
+		  			
+		  		   II.输入多个参数：
+		  		   	(defun show2 (s n)
+		  				(interactive "sEnter your name: \nnEnter your age: " s n)
+
+		 			 	(message "n=%d; s=%s" n s)
+		  			)
+		  		说明：多个参数输入时需使用\n 进行分割
+		  			多个参数输入 接受参数顺序 必须和函数形参顺序相同	
+ 			b.(interactive (list val1 val2 ...)) 将列表的元素依次赋值到 相应的参数
+ 					(defun show1 (p1 p2 p3)
+
+					  (interactive (list "hello" 34 54))
+					  (message "p1=%s; p2=%d, p3=%d" p1 p2 p3)
+					)
+					使用list 形式 接受用户输入：
+					(defun show3 (p1 p2 p3)
+
+  						(interactive (list (read-string "enter your name")
+  											 (read-string "enter your age")
+  											  (read-string "enter your num")
+  						 ))
+
+  						(message "p1=%s; p2=%s; p3=%s" p1 p2 p3)
+  					)
+				 说明：
+				 	可以通过 read-file-name 和read-directory-name 接受文件名和目录
+				 			支持自动补全
+				 			(defun showfile ()
+							  	(interactive)
+							 	 (message "string is %s" (read-file-name "Enter filename: "))
+							 )
+							 
+							(defun showdir ()
+							  (interactive)
+							  (message "string is %s" (read-directory-name "Enter directory name: "))
+							 )
+	(4)匿名函数：
+			定义： (lambda (形参列表) 函数体)
+			调用：
+				(funcall #'(lambda (形参列表) 函数体) 实参1 实参2...)
+				或
+				((lambda (形参列表) 函数体) 实参1 实参2 ...)
+				
+				(message "res=%d" ((lambda (x y) (+ x y)) 2 3 ))
+
+				(funcall #'(lambda (x y) (+ x y)) 2 3)  
+
+4.条件语句和循环语句：
+	（1）条件为假的情况： 只有当为nil 或空列表时， 才为假
+			其他情况都为真
+	(2)条件语句：
+		a. (if (条件判断) (条件为真执行) (条件为假执行))
+			其中 (条件为假) 可省略
+			(if 0 (message "0 is true") (message "0 is false")) ;true
+			
+			(if "" (message "empty string is true" ) (message "empty string is false")) ;true
+			
+			当判断确定后，但该条件 需要执行多个语句来处理时，则需要使用(progn) 指定多个语句执行顺序
+			(if (= j 20) (progn (message "j=20") (setq j (+ j 10)) ))
+		b. (when (条件判断) (条件为真 执行语句1) (条件为真 执行语句2) (条件为真 执行语句3) ...)
+			即 只能定义条件为真的执行语句，且可以为多个语句	
+		c. (unless (条件判断) (条件为假 执行语句1) (条件为假 执行语句2) (条件为假 执行语句3) ...)
+			即 只能定义条件为假的执行语句，且可以为多个语句
+			(unless (= j 20) (progn (message "j！=20") (setq j (+ j 10)) ))
+		d. cond(
+				((条件1)(执行语句1)(执行语句2)(执行语句3))
+				((条件2)(执行语句1)(执行语句2)(执行语句3))
+				((条件3)(执行语句1)(执行语句2)(执行语句3))
+				...
+			 )
+			直到找到第一个条件为真，此时把对应的表达式 的值作为整个表达式的值返回。
+				(cond 
+					((> j 10 ) (message "j>10")) 
+					((> j 15) (print "j>15"))
+					((= j 30) (print "j=30")) 
+				)
+			同一个条件下可以 添加多个处理语句：
+				(cond 
+					((> j 10 )
+				   		(print "j>10")
+				   		(setq j (+ 10 j))
+				   )
+				  	((> j 20)
+				   		(print "j>20")
+				   		(setq j (+ 10 j))
+				   )
+				  	((> j 30) (print "j>30")
+				   )
+				  	((> j 40) (print "j>40"))
+			   )
+		(3)循环语句：
+			a. (do 
+					((变量1 初始值1 累加运算1) (变量2 初始值2 累加运算2)...)
+					((结束条件1) (结束条件2) ...)
+					执行语句1
+					执行语句2
+					...
+			)
+				其中 多个结束条件 逻辑运算为 and
+				(do ((n 0 (1+ n)) (m 10 (+ 10 m)))
+					((>= n 4) (>= m 50))
+				  	(print (+ n m) )
+				  )
+				说明 (1+ n)表示 n自增1
+					但不能使用(10+ m) ,
+						(+ 10 m) 会修改 m 的值
+						  
+			b. (loop 
+					执行语句1
+					执行语句2
+					...
+				)
+				在执行语句中使用 (return) 表示结束循环
+					(let ((n 0)
+						  (sum 0))
+					  (loop
+					   (when (> n 10) (return) )
+					   (setf sum (+ sum n))
+					   (incf n)
+					   )
+					  (message  "sum of 1-10 is: %d" sum)
+				)
+				说明： (incf n) 表示n自增1	
+			c.  
+				(dolist (w '(1 2 3 4)) (print w) )
+				dolist 遍历指定的列表中的元素
+				(dotimes (i 4) (print i))
+	  			dotimes 表示指定循环的次数，并由指定变量来引用当前循环的次数 从0开始				

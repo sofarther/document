@@ -1,0 +1,31 @@
+1.安装 Composer
+	//下载安装脚本 composer-setup.php 到当前目录
+	php -r "copy('https://install.phpcomposer.com/installer', 'composer-setup.php');"
+	//执行安装
+	php composer-setup.php
+	//删除安装脚本
+	php -r "unlink('composer-setup.php');"
+	
+	安装成功后生成一个 composer.phar 执行文件
+	此时为局部安装，可以将 composer.phar 移动到环境变量PATH 目录，即可在任意目录使用 composer.phar 命令
+
+2.镜像用法：
+	启用本镜像服务 ,即修改为中国镜像（加速）
+		
+		方法1：修改 composer 的全局配置文件：
+			composer config -g repo.packagist composer https://packagist.phpcomposer.com
+		方法2：修改当前项目的 composer.json 配置文件
+			在当前项目 的 composer.json 文件所在的目录
+				composer config repo.packagist composer https://packagist.phpcomposer.com
+				
+			上述命令将会在当前项目中的 composer.json 文件的末尾自动添加镜像的配置信息（你也可以自己手工添加）：	
+				 "repositories": {
+								"packagist": {
+									"type": "composer",
+									"url": "https://packagist.phpcomposer.com"
+								}
+							}	
+	其中 composer 命令为composer.phar 执行文件移动到环境变量PATH下的文件名,
+			若为局部安装，则需在composer.char所在的目录中， 使用 php composer.char 来执行
+3.使用 composer 安装包：
+		composer install 将根据当前目录下的 composer.json 文件指定的配置进行安装包						
