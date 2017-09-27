@@ -137,7 +137,7 @@ swoole框架像PHP框架一样，适用于web开发，swoole框架依赖swoole�
 						 将初始化 Swoole对象，并将该对象 赋值到Swoole::$php静态属性	
 						  然后返回 Swoole::$php 对象	  
 			
-			然后在 lib_config.php 中定义一个全局函数：
+			然后在 lib_config.php 中定义全局函数：
 					createModel() model()	table() session()  debug()
 					error() swoole_error_handler()
 		其中 Swoole 类并没有定义在 Swoole 命名空间中	而是在顶层命名空间						
@@ -198,11 +198,16 @@ swoole框架像PHP框架一样，适用于web开发，swoole框架依赖swoole�
 	 在该类中 定义
 	 	__get($key) 
 	 		返回 当前对象 的 swoole 属性(保存的 Swoole 类对象) 的 $key 属性
+			当Swoole 不存在该 属性 时，则会调用 Swoole 的__get()方法
 	 	__call($func, $param)
-	 		调用 当前对象 的swoole 属性(Swoole 类对象) 的 $func 方法		
+	 		调用 当前对象 的swoole 属性(Swoole 类对象) 的 $func 方法，
+			
+				当Swoole 不存在访问的方法时，则会调用 Swoole 的__call()方法	，并传入参数	
+				Swoole 的__call()方法 返回的是一个对象，
+				即不会调用其他任何方法	
 6.Swoole类 ：
 	(1) 加载模块：
-		在 Swoole 定义的  __get($lib_name)方法
+		a.在 Swoole 定义的  __get($lib_name)方法
 				当访问 的Swoole  的属性 不存在时，将在该方法中调用
 					Swoole 的loadModule($module, $id = 'master')，
 						在该方法中，将 $module . '_' . $id; 作为键名
@@ -214,9 +219,66 @@ swoole框架像PHP框架一样，适用于web开发，swoole框架依赖swoole�
 									若存在， 则调用 require 引入该文件
 									否则 抛出异常
 							最后将 引入的文件的结果 作为键值 ，以 $module . '_' . $id作为键名 保存到$objects属性中
-				并返回 引入的文件的结果 并将该结果赋值到 Swoole 的 $lib_name 属性中						
+				并返回 引入的文件的结果 并将该结果赋值到 Swoole 的 $lib_name 属性中	
+		
+		b.在Swoole 定义的__call($func_name,$param)方法中，	
+				先判断 方法名 $func_name 是否为swoole built_in 的可创建多个示例的工厂类，默认的多个示例工厂类为：
+						static Swool::$multi_instance = array(
+								'cache' => true,
+								'db' => true,
+								'mongo' => true,
+								'redis' => true,
+								'url' => true,
+								'log' => true,
+								'codb' => true,
+								'event' => true,
+							);
+				若为其中的类，则会调用 loadModule() 方法， 并将__call()中传入的数组参数 的第一个元素作为loadModule()  的id 值
+						这样通过 id来区分不同的示例
+				若不为其中的类，则只对	当前应用下的 factory/下 是否存在 $func_name . '.php' 文件,
+					若存在，则 将$func_name . '_' . $param[0] 作为键名，
+						然后判断 Swoole 的 objects 属性 的数组是否存在该键名,若存在则返回该键值，
+						否则 加载当前应用下的 factory/下 的 $func_name . '.php' 文件，
+							并将$param[0] 作为 在创建 应用工厂类时，指定配置文件中的键名，并将该配置的键值作为构造函数参数传入
+						最后 将该对象保存到 objects 属性中，并返回创建的工厂类对象
+				__call()方法只作为 加载模块 和创建对象， 而不会调用模块或其他对象的方法		
+		
+			说明：
+				Swoole 的__get() 和 __call() 方法，都会进行加载工厂类文件，并创建该类对象，保存到 objects 属性中，并返回该对象
+				不同之处：
+					I.__get()方法 是调用loadModule($module, $id = 'master') 方法进行加载的，
+						并先 判断 是否存在当前应用下用户定义的工厂类，然后在加载 系统libs/factory/ 下定义的工厂类
+					  __call() 则 只对$multi_instance属性中 定义的数组工厂类 进行加载系统 libs/factory/ 下的工厂类
+								其他则只加载 当前应用下用户定义的工厂类
+					II. 在创建工厂类对象时，构造函数的参数 是在相应的配置文件中定义，
+							并由Swoole::factory_key属性指定该配置文件中的键名，对应的键值作为构造参数
+						Swoole::factory_key 默认为 master	
+						 __get()方法，中调用的loadModule($module, $id = 'master'), 会将 $id 作为	Swoole::factory_key值，并创建类对象
+						 __call()方法，则会将传入的参数的数组的第一个元素作为 Swoole::factory_key值，并创建类
+	(2)加载数据表模型：
+			$model 属性为 Swoole\ModelLoader类，该类中的定义的 __get() 和 __call() 都会调用 
+						Swoole\ModelLoader::loadModel($model_name, $db_key = 'master'),
+					加载 当前应用下的 models/下的类(该类命名空间为App\Model\, 需继承 Swoole\Model 类)
+					并实例化该类对象保存到 _models数组属性中，以$db_key 和 $model_name 作为键名
+					__call() 可以指定$db_key 的值，该值用于 在Swoole\Model 的构造函数中指定数据库连接配置文件中，加载的配置键名，
+				因此可以在 当前应用下的 models/ 下创建 对应某个数据库表的类，实现对该表的操作
+				另外，也可以不显示定义表的对应类模型， 在	Swoole\ModelLoader类 定义了loadTable($table_name, $db_key = 'master')方法，
+						可以直接传入表名，返回一个Swoole\Model  类对象，并设置其table属性为该表名，
+						并保存到 _tables数组属性中，以$table_name为键名
+						
+			在libs/lib_config.php 文件中定义的全局函数 model()	table()，就是分别调用 	Swoole\ModelLoader 类中的loadModel()和loadTable()
+				方法，来创建 数据表模型
+				
 7.Swoole\Controller 继承 Swoole\Object(而不是 php 内置的 Object)
-		控制器 的$tpl属性，通过 调用 Swoole 对象的__get() 方法，来引入 libs/factory/tpl.php 文件
+		(1)在构造函数中会调用 Swoole::__init() 函数进行初始化，
+			在该函数中，当为 debug 模式下，会创建  \Whoops\Run 对象注册异常、错误等处理函数
+				当为浏览器访问时，将\Whoops\Handler\PrettyPageHandler 对象添加到处理函数列表
+				当为命令行模式时，将\Whoops\Handler\PlainTextHandler 对象添加到处理函数列表
+				最后调用 Run::register()方法进行注册：
+					 在该方法中 将 \Whoops\Run 的 handleException handleError handleShutdown 注册为相应的处理方法
+						在各个方法中会调用 处理函数列表 中的每个处理对象的handle()方法来处理
+						
+		(2)控制器 的$tpl属性，通过 调用 Swoole 对象的__get() 方法，来引入 libs/factory/tpl.php 文件
 			在该文件中创建 Swoole\Template 对象， 该类继承 Smarty 类						 	 						
 				并 返回该对象
 		故可以在控制器中使用 $tpl 属性进行模板分配和显示
