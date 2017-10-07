@@ -258,9 +258,12 @@ swoole框架像PHP框架一样，适用于web开发，swoole框架依赖swoole�
 						 __get()方法，中调用的loadModule($module, $id = 'master'), 会将 $id 作为	Swoole::factory_key值，并创建类对象
 						 __call()方法，则会将传入的参数的数组的第一个元素作为 Swoole::factory_key值，并创建类
 	(2)加载数据表模型：
+			Swoole 加载的db 属性，当配置文件中没有指定 use_proxy 时，保存的是 \Swoole\Database 对象
+					否则 为 Swoole\Database\Proxy 对象
 			$model 属性为 Swoole\ModelLoader类，该类中的定义的 __get() 和 __call() 都会调用 
 						Swoole\ModelLoader::loadModel($model_name, $db_key = 'master'),
 					加载 当前应用下的 models/下的类(该类命名空间为App\Model\, 需继承 Swoole\Model 类)
+					该类的文件名 和该类名完全相同，区分大小写
 					并实例化该类对象保存到 _models数组属性中，以$db_key 和 $model_name 作为键名
 					__call() 可以指定$db_key 的值，该值用于 在Swoole\Model 的构造函数中指定数据库连接配置文件中，加载的配置键名，
 				因此可以在 当前应用下的 models/ 下创建 对应某个数据库表的类，实现对该表的操作
@@ -293,7 +296,7 @@ swoole框架像PHP框架一样，适用于web开发，swoole框架依赖swoole�
 			对象，并返回该对象，
 			因此在访问 $event 属性时，会调用 Swoole 的__get()方法实现加载
 			其中 配置信息：
-				type 指定保存和弹出 异步队列的 缓存类名，
+				type 指定保存和弹出 异步队列的 队列类名，
 				async 为true表示异步队列，false 表示同步执行
 		(2)在 Swoole\Component\Event::trigger($type,$data) 方法：	
 			触发事件：
@@ -307,9 +310,73 @@ swoole框架像PHP框架一样，适用于web开发，swoole框架依赖swoole�
 						且为Swoole\IFace\EventHandler 接口实现类，（需实现trigger()方法）
 						则将为类对象保存到Swoole\Component\Event的_handles 属性，并以$type 为键名的键值数组；
 					然后遍历_handles[$type] 数组，依次调用元素的trigger($type,$data)方法来处理事件	
+			
 			当配置文件中指定为异步时，则会调用getQueueInstance()方法，
 				在该方法中 通过配置文件中的 type 指定的 保存和弹出 异步队列 的类名，
-						实例化该类对象，并保存到Swoole\Component\Event 的_queue属性中
+						实例化该类对象，并保存到Swoole\Queue\Redis 的_queue属性中
 					然后调用该属性的push(array('type' => $type, 'data' => $data)) 保存异步队列
-9.\Object类 的$redis 属性,该属性为 Swoole\Component\Redis
-			实例化 在libs/factory/redis.php 工厂类文件中创建并返回 			
+	 
+	  (3)_queue属性，该属性为 Swoole\Queue\Redis，并没有通过factory/下定义的redis.php工厂类，并读取redis配置文件
+	  		来创建，factory/下定义的redis.php工厂类和读取redis配置文件，是在Swoole类构造函数实例化$redis 属性时使用
+	  			\Swoole::$redis属性为 Swoole\Component\Redis 对象，在实例化时，会将redis配置文件中的连接配置
+	  			作为参数传入，在该构造函数中会调用 connect()方法，实例化_redis属性，并连接到 redis服务器，
+	  			 定义的__call()方法，可以直接通过该对象来执行 \Redis 的方法
+				实现 \Swoole\IFace\Queue 接口的 pop() 和 push() 方法，在这两个方法中调用
+					\Swoole::$php 的$redis属性的 lPop() 和 lPush() 方法进行 redis 操作，
+						其中的在redis 中的键名 为该类的$key 属性，默认为 swoole:queue 	，
+						可以通过在 配置文件 event.php 中指定 key 和id
+	(4)处理异步队列中的事件：
+			新建一个在命令行执行的 php 脚本，在引入swoole框架后，直接调用Swoole\Component\Event::runWorker 方法，
+			该方法会创建指定个数的子进程，每个子进程都会依次处理每个队列中的事件
+			当没有指定为后台进程时，执行该脚本时会占据终端	
+			a.Swoole\Component\Event::runWorker($worker_num = 1, $daemon = false):
+				$worker_num 当为1时，则不会创建子进程，大于1时则为创建的子进程数（不包括当前进程，当前进程为父进程）
+				$daemon 表示是否为后台进程
+				I.实例化原子计数 \swoole_atomic(1) 并保存到_atomic属性，
+					其中 1表示初始化的值
+					该属性用于标识进程状态（当该值为0时则表示进入等待状态）
+						在swoole_server中使用原子计数器，必须在swoole_server->start前创建
+						在swoole_process中使用原子计数器，必须在swoole_process->start前创建
+				
+				II.当$worker_num为1 且$daemon 为false时，则
+					 调用 Swoole\Component\Event::_worker()方法
+					否则：
+						创建指定个数的子进程：
+						i.	$process =  new \swoole\process(array($this, '_worker'), false, false);		
+							第一个参赛数为进程开启时执行的函数
+        					第二个参数为true 表示 重定向子进程的标准输入和输出，
+        						启用此选项后，在子进程内输出内容将不是打印屏幕，而是写入到主进程管道
+        					第三个参数为 是否创建管道， 当开启子进程的重定向后，会强制为true	
+        								读取键盘输入将变为从管道中读取数据， 默认为false
+        	
+        				ii.调用\swoole\process::start() 执行fork系统调用，启动进程,
+							创建成功返回子进程的PID，创建失败返回false,
+							可以通过 $process->pid 属性为子进程的PID ; $process->pipe 属性为管道的文件描述符
+							将会调用构造函数中指定的回调函数，
+							并将创建的 \swoole\process 对象保存到 _workers数组属性中
+							
+						iii.注册父进程捕捉SIGCHLD,和 SIGTERM 信号的回调处理函数，
+							其中 SIGCHLD信号，使用 kill -CHLD 父进程PID 和 kill -9 子进程PID 会触发并由父进程捕获：
+								该信号的处理函数为一个while(true)的循环：
+										先获取要杀死的子进程信息：
+											$exitProcess = \swoole_process::wait(false); 
+											其中：false表示不阻塞，默认为阻塞阻塞模式
+												当调用成功时，返回杀死的子进程的PID、退出状态码、被哪种信号KILL 的信息的一维数组
+													 ["pid"]=>int(11420) ["code"]=>int(0) ["signal"]=>int(9)
+												否则返回false
+											当父进程会接受到CHLD信号，则wait()返回false,
+											当	kill -9 子进程PID 时，则wait()返回杀死的子进程信息数组,
+										然后 当$exitProcess 为false时，则直接退出while(true)循环，处理结束
+											否则会遍历_workers 数组中保存的与该子进程PID相同的进程对象，
+												若此时的原子计数仍为1时，则
+												  调用该子进程对象的start()，重新执行该子进程，
+												  然后重新循环到\swoole_process::wait(false); ，此时返回false,故退出循环
+												  若为0,则删除_workers 数组中该子进程对象
+								SIGTERM 信号处理函数 则会将	原子计数 设置为0			  
+												  
+		b. Swoole\Component\Event::_worker()方法:
+			先获取保存异步队列的类对象 _queue属性，
+			然后当	原子计数 为1 时，则一直循环，调用_queue对象的pop()方法获取 队列中保存的事件，
+				并调用_execute($event['type'], $event['data']); 
+				处理该事件，
+			当没有事件处理或已处理完后，则会一直无限循环 等待而不会退出， 直到进程被杀死		

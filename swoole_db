@@ -1,0 +1,366 @@
+1.Swoole\Database 
+	统一 mysql mysqli pdo 驱动连接、执行、查询结果
+	(1)构造函数：
+	
+	  a.实例化$_db 属性： 继承 Swoole\IDatabase
+			通过 db配置文件 指定的 type来确定 实例化的类名：
+				Swoole\Database\MySQL、Swoole\Database\MySQLi、Swoole\Database\PdoDB
+	 	  调用 各个类的query($sql)方法，来执行SQL语句
+	 b. 实例化 db_apt 属性：
+	 		创建 Swoole\SelectDB($this)	对象,并将当前对象作为参数传入，
+	 	 在	Swoole\Database 中定义的 insert($data, $table) insertBatch(array $fields, array $data, $table)
+	 	 	 delete($id, $table, $where = 'id') update($id, $data, $table, $where = 'id')
+	 	 	 get($id, $table, $primary = 'id')
+	 	 	方法中 将传入的参数 赋值到   Swoole\SelectDB 对象 的相应 SQL语句的从句的 属性，
+	 	 	 并调用 Swoole\SelectDB 对象 相应的方法 拼接SQL语句，并执行
+	 	 	 其中 执行操作会调用  Swoole\Database::query()方法
+	
+	(2)query($sql)
+		将 $sql 赋值到 lastSql 属性，该属性可通过 getSql()方法获取
+		 调用 $_db属性的 query()方法执行SQL语句，并返回执行的结果	 	  
+	(3)返回查询结果：
+			a. Swoole\IDbRecord 接口：
+					定义了两个方法 fetch(); fetchall();
+				其中	Swoole\Database\MySQL 会将查询结果封装为 Swoole\MySQLRecord
+					Swoole\Database\MySQLi 	会将查询结果封装为 Swoole\MySQLiRecord
+					MySQLRecord 和MySQLiRecord 都实现了Swoole\IDbRecord 接口
+					故可以调用 fetch(); fetchall(); 方法返回结果一维或二维数组
+			b.Swoole\Database\PdoDB
+					在构造函数中 将\PDO::ATTR_DEFAULT_FETCH_MODE 属性设置为 \PDO::FETCH_ASSOC
+				因此在 query()方法中返回的结果 \PDOStatement 对象 在调用fetch() 和fetchall()时,
+					也会返回	一维或二维数组		
+
+2. Swoole\SelectDB： 
+		 实现SQL生成器 仅支持MySQL，
+	(1)构造函数：
+			将传入的 \Swoole\Database 对象 赋值到 $db属性
+	(2)保存 SQL语句 从句参数  方法：
+			以下方法返回 null,即不能做连贯操作
+			from($table) 多个表名 用, 分割
+			join($table_name, $on) leftjoin($table_name, $on) rightjoin($table_name, $on)
+			select($select, $force = false)	$force 表示直接对 $select属性赋值，否则为追加到原$select属性
+			limit($limit) 当指定起始和条数时，使用, 分割；当为空时，表示清空$limit属性， 不做限制
+			order($order)	当为空时，表示清空$limit属性， 不做限制
+			group($group)	当为空时，表示清空$limit属性， 不做限制 		
+			having($having)	当为空时，表示清空$limit属性， 不做限制 	
+			union($sql)	
+			
+			where() 传入的参数形式 ：
+						 一个参数： 则为 合法的WHERE从句表达式
+						 三个参数： field, expr, value
+					当 $where 属性已有值时，则会通过 and 进行连接，
+					可以通过 orwhere() 指定 多个条件使用 or 连接
+					特定操作方法： 
+							id($id) 传入主键值
+							in($field, $ins) $ins 可以是字符串使用,分割 也可以是 数组形式
+							notin($field,$ins) $ins 可以是字符串使用,分割  也可以是 数组形式
+							equal($field, $_where) 其中 $_where 当为 \Swoole\SelectDB 对象时，会调用getsql()方法
+										生成子查询，并以= 作为操作符
+							like($field, $like)	
+					in ontin 操作符不能使用 where 或orwhere()指定，必须使用 in() 和notin() 方法指定	
+						否则会将 值 直接作为 用, 分割的 字符串 拼接	
+		put($params) ： 可以通过数组，指定各个 从句的参数，
+						其中 
+							where 调用 _where()函数指定 $where属性，
+									当指定多个条件时，使用数组形式
+									 每个条件元素，当为field, expr, value 分别传入时，该元素需使用数组形式
+							orwhere  当指定多个条件时，使用数组形式
+									每个条件元素 只能为 一个参数的 合法的WHERE从句 的字符串，不支持 多个参数传入的形式
+							walk 指定的数组， 遍历每个元素
+									当键名 以_ 开头时 ，将_去掉， 并作为键名保存到extraParmas属性中
+									否则，将调用_call()：
+											若 Swoole\SelectDB 存在该该方名，则
+												将键名作为调用的函数名（不能为insert update delete）	
+												当该函数需要传入多个参数时，则将wakl数组中的 键值 使用数组形式
+											若不存在 该方法名，则
+													调用where()方法，将键名和键值作为 = 运算连接 作为条件	
+							对于剩下的其他键名则 与 walk 的数组 处理相同
+		(3)分页相关方法：
+					page($page) 指定当前页码，
+					pagesize($page) 指定每页的记录数
+					paging()  按设置的分页参数  分页的信息 的\Swoole\Pager对象， 并保存到 $pager 属性
+		(4)执行查询方法
+				getsql($ifreturn = true) 返回拼接后的SQL
+				exeucte($sql = '')
+						当参数 $sql 为空时，调用 getsql(false) 获取执行的SQL 语句
+						调用 db 属性保存的 \Swoole\Database 对象 的query() 方法执行
+						将执行的结果保存到 $result属性，并将is_execute累加1
+				getone($field = '')	
+					获取 exeucte() 方法执行后保存在 $result属性中的指定的字段值
+					若属性auto_cache 为 true, 则先从缓存中读取，
+						若没有则判断 is_execute 是否为0,若为0 ，则执行exeucte()  执行查询
+								并保存到 缓存中，
+					然后调用 $result属性 保存的 对象 执行 fetch()，获取第一条数据
+					当 $field 为空时，则返回全部字段内容，否则只返回指定的字段值
+				getall()
+					先通过 enableCache属性判断是否开启缓存，
+							该属性可通过 cache()来设置，
+								当开启缓存时，参数传入缓存的配置数组
+											key 表示指定Cache的Key，当为空时，则自动生成
+											object_id 指定缓存类型，当为空时，则使用\Swoole::$cache 属性指定的缓存对象
+											lifetime 缓存时间，默认为 300s
+					当从缓存中读取的数据为空或没有开启缓存时，则执行 _execute() 方法，
+							在该方法中 当is_execute 为0,时，会调用exeucte()  执行查询，
+							然后 会在调用	$result属性 保存的 对象 fetchall() 并返回数据数组
+												
+				 count() 获取当前条件下的记录数， 返回int 类型	
+				 insert($data) 对传入的数据 进行SQL语句拼接，并调用 db属性的 \Swoole\Database 对象 的query() 方法执行
+				 insertBatch(array $fields, array $data) 同上
+				 update($data) 同上
+				 delete()	同上												
+				 rowCount()		获取受影响的行数	
+			
+			说明：
+				a.在使用Swoole\SelectDB 执行查询时，不需要执行 exeucte()方法，直接调用getone()或getall()即可
+				b.getall()会遍历完整个结果集，此时结果集游标位于最后一条记录后，
+				  在 调用getall()后，再调用getone()来获取数据时，
+				  在\Swoole\SelectDB中会直接调用 保存在 $result 属性的 结果集的 fetch(), 无法获取数据，返回false
+				  因此需将 is_execute 属性设置为 0, 表示重新执行 SQL语句
+				c.getone()
+						在该方法中会添加LIMIT 1 从句，从而查询的结果最多只返回一条数据 
+					 当没有设置 auto_cache 时，则在调用 getone()后，再次执行该方法时，
+					 由于只有一条数据，将会随着当前游标移动而返回false,
+						 
+						 若开启缓存后， 需修改 缓存键名 值 ：md5($this->sql)  为 md5($this->getsql(false))
+						  	因为 在第一次执行时， 还没有 调用 exeucte()执行，因此 sql属性 为空，
+						  		在第二次执行时，sql属性才会赋值为 执行的语句
+				d. SQL 条件语句中 and 优先级 大于 or 优先级
+					select * from `user` where `user_id` IN (2,4,6,9) or `user_id`= '8' and `user_name`like '%aa%' 
+					表示 user_id 为  2,4,6,9
+						或 (user_id`= '8' 并且 `user_name`like '%aa%)
+					若要添加 () 改变优先级，则只能 手动拼接 完整的 or 从句， 作为一个参数传入，再调用where 使用 and 连接其他 条件
+						而无法使用 orwhere() 来实现 带有() 拼接的or 从句， 只能添加默认优先级的 or 从句 
+					$apt->where('( user_id in (2,4,6,9 ) or user_id =8 )');	
+					 $apt->like('user_name','%aa%');	
+				
+				e. put($params)
+						$params=[
+						   		'from'=>'user',
+						   		'select'=>'user_id,user_name',
+						   		'where'=>['user_id=3',['user_name','like','%aa%']],
+								'orwhere'=>['user_passwd like "%aa%"','user_id in (4,6,8)'],
+						   		'in'=>['user_id',[2,4,6,9]],
+						   		'user_id'=>'7'
+       							];
+       					orwhere 指定的多个条件 中，第一个条件 与已保存在 where属性中的条件 使用 or 连接，
+							  并且 多个条件 之间 也使用 or 连接，
+							 但最后的一个条件与下个 其他条件 连接时，则由下个条件 指定的逻辑符 连接 
+					select user_id,user_name from `user` where 
+									user_id=3 and `user_name`like '%aa%' 
+									or user_passwd like "%aa%"
+									or user_id in (4,6,8) 
+									and `user_id` IN (2,4,6,9) 
+									and user_id="7" 	   					
+       								 		  		
+3. Swoole\Model	表模型
+		当指定 某张表时，继承该类，并对 $tablename 属性赋值, 同时对  $primary 设置 该表的主键名
+		(1)构造函数：(\Swoole $swoole, $db_key = 'master')
+				db 属性赋值为  \Swoole 调用db() 方法加载的 Swoole\Database 对象
+				dbs  属性赋值为 \Swoole\SelectDB 对象
+				swoole 属性赋值为 传入的 $swoole
+		(2)执行查询操作：
+				gets($params, &$pager=null)
+					其中 $params 中可以指定 SQL语句中各个从句的参数
+						select从句的参数 可以直接通过 对 Swoole\Model $select 属性赋值
+				在该方法中会调用 \Swoole\SelectDB 对象 的 put($params) 方法传入 从句参数
+				当在	$params 指定了 page 时，则会 调用 \Swoole\SelectDB 对象paging()返回 \Swoole\Pager对象 ，
+					并赋值到 $pager 参数中
+				最后调用 \Swoole\SelectDB 对象 getall() 方法，并返回结果
+			
+			get($object_id = 0, $where = '')
+				并不执行查询操作， 而是将 $object_id, $this->db, $this->table, $this->primary, 
+										$where, $this->select
+					作为参数 创建并返回一个  Swoole\Record 对象，
+				 其中当 $object_id 不为空时， 则 在 Swoole\Record 的构造函数中，
+				 会 将 $where指定的字段名（为空则使用该表的主键名）， $object_id 指定的值，作为条件执行查询
+				 并将查询的结果的第一条记录 保存到 Swoole\Record 对象_original_data 和 _data属性	
+				 		并设置 _current_id  为 该表的主键值，
+				 即 一个	Swoole\Record 对象 对应一条记录， 可通过对该对象 的属性和方法， 直接对该记录进行操作
+			
+			all()
+				不执行年查询操作 ，返回 \Swoole\RecordSet 对象，并将
+				 	$this->db, $this->table, $this->primary, $this->select
+				 	作为参数传入，
+				 在	 \Swoole\RecordSet 构造函数中，只对传入的 各个从句参数进行保存，并不执行操作，
+				 
+				 		其中 默认的 排序 为 主键倒序 
+				 		可以通过 \Swoole\RecordSet 的 params($params)	  filter($where) orfilter($where)
+				 				其中 filter() 和 orfilter()只能接受一个参数
+				 			或 	\Swoole\SelectDB 定义的方法 修改 SQL语句的各个从句参数
+				 		然后调用 fetch($field='') fetchall() 来执行查询，并返回
+				 或者  \Swoole\RecordSet 实现了 \Iterator 接口，
+				 		
+				 			可通过 foreach循环，
+				 			   会先调用 rewind()查询数据并赋值到 $_list 属性
+				 			 将自动调用  current() 方法 将当前记录数据 封装为Swoole\Record 对象，并返回
+				 			 
+				 			 在遍历完 RecordSet对象，再次调用 fetchall()方法 返回空数组
+				 			 
+				 			 $records = model('User')->all();
+		
+							$records->params(['limit'=>'1,5','order'=>'user_id asc']);
+							//$records->filter('user_id>3');
+							//$records->orfilter('user_name like "t%"');
+							$records->where('user_id','>',3);
+							$records->orwhere('user_name','like','t%');
+		
+							foreach($records as $val)
+							{
+								// \Swoole\Record 对象
+								//var_dump($val);
+								var_dump($val->get());
+							}
+		(3)插入、更新、删除操作：
+				put($data) 插入一条新的记录到表 调用 \Swoole\Database 的 insert($data, $table) 方法
+				puts(array $fields, array $data) 批量插入数据	
+							调用 \Swoole\Database 的	insertBatch(array $fields, array $data, $table) 
+							其中 $data 数组为 二维的 索引数组，不能是 关联数组，会根据 索引值 依次 对 $fields 数组的对应的字段名 指定插入的数据
+								
+								 $field=['user_name','user_passwd','mobile','user_register_time'];
+								   $data=[['greage','564353ergfaw4','13243434326',$now+100],
+								   			['kgjdj','bmfr35wwfw67','16847738976',$now+200],
+								   			['hrtage','garaw553eaw4','1894554466',$now+300],
+								   
+								   	];
+				set($id, $data, $where = '') 更新指定条件 的字段数据，
+					其中 $id 可以不是主键值，但必须与$where指定的字段名对应（为空则为主键名）	
+				 			调用 \Swoole\Database 的update($id, $data, $table, $where = 'id')	
+				 			$model->set('ddd',['user_passwd'=>'mekruew','mobile'=>'1234456677'],'user_name')
+				sets($data, $params) 指定多个更新条件，  $params 不能为空
+						将调用 \Swoole\SelectDB  from($this->table) 
+							put($params) 设置从句参数
+							update($data) 执行更新操作
+							$params=['where'=>['user_name="ddd"',['user_passwd','like','d%']]];
+							$model->sets(['user_passwd'=>'33432tueksdfjawef','mobile'=>'19745432332'],$params)
+				del($id, $where=null) 删除数据
+						其中 $id 可以不是主键值，但必须与$where指定的字段名对应（为空则为主键名）	
+				 			调用 \Swoole\Database 的delete($id, $this->table, $where)
+				dels($params) 指定多个条件删除, $params 不能为空
+					 		将调用 \Swoole\SelectDB  from($this->table) 
+							put($params) 设置从句参数
+							delete(); 执行删除操作	
+		(4)其他表操作：
+				count($params)	将调用 \Swoole\SelectDB 	from($this->table) 
+							put($params) 设置从句参数
+							count() 执行删除操作	
+				createTable() 必须指定  create_sql 属性
+				getStatus() 获取表状态信息
+				desc() 获取表的字段描述	
+		(5) select($fields = '*')
+				传入 $this->db, $this->table, $fields 参数
+				 创建并返回  \Swoole\Component\QueryBuilder 对象 	
+
+		说明：
+			\Swoole\Model 对象 不能调用 \Swoole\SelectDB 类中的方法，
+				对于执行 SQL语句的参数， 则在 调用执行方法时通过 参数传入
+			
+4.\Swoole\Component\QueryBuilder 
+			对 \Swoole\SelectDB 用于生成 SQL语句的 从句的方法进行封装，
+			可以支持连贯操作：
+		(1)构造函数：(Database $db, $table, $fields)
+				初始化 db属性为 \Swoole 调用db() 方法加载的 Swoole\Database 对象
+				selector 属性 为 	\Swoole\SelectDB
+						并调用	\Swoole\SelectDB 的 from() 和 select() 方法设置传入的参数
+		(2)连贯操作：
+				join($table_name, $on)  leftJoin($table_name, $on)  rightJoin($table_name, $on)
+				groupBy($field) having($expr) limit($limit, $offset = -1) order($order)
+				
+				where() 支持的参数：
+							一个参数 ： 
+									当为 数组时，则每个数组元素的键名 和键值 作为条件的字段名和字段值，操作符 为=,
+											 每个条件 逻辑以 and 连接
+									当不为数组时， 则 必须为 合法的 Where从句表达式 字符串
+							两个参数：
+									第一个参数为 字段名，第二个参数为 字段值， 操作符为 =
+							三个参数：
+									 field, expr, value
+				orWhere() 一个参数时，则不支持数组形式					 						 				  			 					 	指定操作符 ：
+						like($field, $like)
+						in($field, $value)
+						notIn($field, $value)
+						equal($field, $value)
+				in ontin 操作符不能使用 where 或orWhere()指定，必须使用 in() 和notin() 方法指定		
+				分页：
+					 paginate($page, $pagesize = 10) 将创建的 的 \Swoole\Pager对象， 并保存到 $pager 属性
+					 		可以通过 getPager() 方法获取
+		(3)执行查询：
+				fetch() fetchAll()  getSql() 	
+5. \Swoole\Record 对象
+		继承 Swoole\Component\Observer 
+		实现了 \ArrayAccess ，即 可以通过 数组和属性的形式 访问
+		一个	Swoole\Record 对象 对应一条记录， 可通过对该对象 的属性和方法， 直接对该记录进行操作
+		
+	(1)	a.Swoole\Component\Observer 对象 
+			实现了 \SplSubject 接口
+			即 作为 被观察者 对象，
+			  实现的方法：
+			  		添加观察者：attach(\SplObserver $observer)
+			  		移除观察者：detach(\SplObserver $observer) 
+			  		通知所有观察者：notify()	
+			  其中\SplObserver 接口 定义的方法	
+			  		public void update ( SplSubject $subject )
+			  	即 观察者必须 实现该方法， 这样 在 被观察 调用 notify() 时，将调用 观察者的 update()方法
+		b.	\ArrayAccess 接口：
+			 需实现 ：
+				offsetExists($key)
+				offsetGet($key)
+				offsetSet($key, $value)
+				offsetUnset($key)
+	(2)主要方法： 
+	   a.构造函数：
+			function __construct($id, $db, $table, $primary, $where = '', $select = '*')
+			先依次为 属性  _current_id db table primary 赋值
+			 	当 $id 不为空时， 则会根据该 值 和 $where 指定的 字段名  执行查询操作，
+					 	若查询到结果集，则只取 其中的第一条记录  并初始化 为_original_data _data 属性 值，
+					 	重新 为 _current_id 赋值为 该记录的主键值，
+					 	_change 状态设置为 插入状态
+			 	当 $id 为空时， 则	 _current_id 、_original_data、 _data 属性都为空，
+			 			 _change 状态设置为 空状态，
+			 			即当前 \Swoole\Record 对象 表示的是一个空记录
+	   b.put($data) 对当前 \Swoole\Record 对象进行数据填充，
+	   		 当 	_change 状态为 空状态 时，则将 参数$data 赋值到 _data 属性，并设置 _change 状态 为插入状态
+	   		 当 _change 状态为 插入状态 时，则将 参数$data 赋值到 _update 属性，并设置 _change 状态 为更新状态
+	   		当_change 状态为 更新状态时，则不会做任何操作
+	   		
+	   c. __get($property) 	
+	   		判断 _data 属性中是否存在 指定的键名，若存在则返回对应的键值，否则报错，并返回 null
+	   	
+	   d. __set($property, $value)	
+	   			当_change为插入状态 或 更新状态时，会设置 _update 和 _data 数组 中对应的键值，
+	   					并将  _change  设置为 更新状态
+	   			当_change为空状态时，则 只设置  _data 数组 中对应的键值，不会更新 _change 状态		
+	   			
+	   		  最后设置 _save 为true	
+	   	 				 	  				
+	   	 因此
+	   		 当前  \Swoole\Record 对象 用来对应的 该记录的 属性为 _data属性
+	   	 				当  _change 为 空状态时，该 _data属性 为 空，即空记录
+	   	 				
+						当 _change 为插入状态或 更新状态时，\Swoole\Record 对象对应的 记录可能并不存在数据库中
+						
+			由于使用 put()方法 中 当_change 状态为 插入状态，不会更新 _data 属性，
+	   				因此 在执行该方法后， 使用\Swoole\Record 对象 获取 该记录 的数据 不会改变，
+	   				
+	   				 			
+	e. save() 
+			当 _change为 插入状态 或空状态时 ，会执行插入操作， 数据 为 _data 属性保存的数组
+				因此 当  	当前  \Swoole\Record 对象  对应的是已存在的记录，但没有更改该记录的任何值时，将执行插入操作
+					但 不能包含  主键值
+			当 _change为 更新状态时 ，会执行更新操作， 新的数据 为 _update 属性保存的数组,
+					若 _update 中 包括 主键 时，则会删除该键值对，
+					条件 为 当前	 \Swoole\Record 对象  对应的 记录 的主键名和主键值 
+			设置 _save 为 false
+			最后 调用 notify() 方法 通知观察者 
+		 	
+	f.delete() 
+			删除  当前	 \Swoole\Record 对象  对应的记录，
+				并设置 _delete 为 true
+				最后	调用 notify() 方法 通知观察者 
+	说明：
+			由于使用 save() 和 delete()方法 中 不会修改 _data _update 属性值，
+			因此 对于使用 put()方法，添加的更新数据 ，在执行 save()更新后，仍 无法通过 \Swoole\Record 对象 获取 该新记录 的数据
+			   delete()方法执行后 仍可以通过 \Swoole\Record 对象 获取 原记录的数据
+			     						
+	g. 
+		get() 返回 _data 数组，
+		getOriginalData() 返回 _original_data 属性													 				

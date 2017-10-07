@@ -1,0 +1,124 @@
+1.聊天客户端 代码解析：
+	//异步IO 只能在cli 环境下执行
+	$client= new swoole_client(SWOOLE_SOCK_TCP,SWOOLE_SOCK_ASYNC);
+	
+	//创建一个子进程，用来始终等待用户写入数据 
+	 $process =  new \swoole\process(function(swoole_process $process){
+			
+			
+					while(true)
+					{
+						fwrite(STDOUT,"\n enter command: ");
+						$msg =trim(fgets(STDIN));
+						//var_dump($msg);
+						if(empty($msg)){
+							continue;
+						}
+						$process->write($msg); #1
+						//var_dump($cli->errCode);
+						sleep(1);
+					}
+					
+	
+				 }, false);
+	//子进程结束必须要执行wait进行回收，否则子进程会变成僵尸进程			 
+	swoole_process::signal(SIGCHLD, function($sig) {
+				  //必须为false，非阻塞模式
+				  while($ret =  swoole_process::wait(false)) {
+					  echo "PID={$ret['pid']}\n";
+				  }
+		});	
+	//添加 连接成功事件回调函数	
+	$client->on('connect',function(swoole_client $cli) use ($process)
+	{
+		
+			fwrite(STDOUT,"Enter ID: ");
+		$id=trim(fgets(STDIN));
+		fwrite(STDOUT,"Enter name: ");
+		$name=trim(fgets(STDIN));
+		//发送数据到服务端
+		$cli->send("/setname $id $name");
+		$cli->send("/getusers");
+		/* #3
+		while(true)
+					{
+						fwrite(STDOUT,"enter command: ");
+						$msg =trim(fgets(STDIN));
+						//var_dump($msg);
+						var_dump($cli->send($msg));
+						//var_dump($cli->errCode);
+						sleep(1);
+					}
+		*/
+		$process->start();	 
+			//将管道加入到事件循环中，变为异步模式，默认下 swoole_process::read()为同步模式
+			//此时当管道中有数据时，就会进行自动读取
+		#4	
+		 swoole_event_add($process->pipe, function($pipe) use ($process,$cli) {
+									
+									$recv = $process->read(); #2
+
+									//echo "From Master: $recv\n";
+
+									//send data to master
+									if(!$recv){
+										echo "\n enter command:";
+									}else{
+										var_dump($cli->send($recv));
+									}
+									
+									
+								});
+	}
+	);			 
+	说明：
+		
+		#1 处 传入的 $process 对象 为父进程， $process->write()表示向该对象写入，
+				即 父进程的输入端 和当前子进程的输出端
+			STDIN 和STDOUT 表示标准输入和输出端	
+		#2 处 的 $process 对象为 子进程， $process->read()表示从该对象读取数据，
+				即 当前父进程的输入端， 子进程的输出端
+		#3 注释的代码，若使用该处的代码来 等待用户写入数据 然后发送数据到服务端，则会	阻塞进程，
+			从而导致 客户端始终无法 触发 receive 接受数据事件，即无法显示接受到的信息
+		#4 通过	swoole_event_add() 方法 将 父进程 通过管道来 读取子进程 变为异步模式，
+				否则 父进程将仍会被读取子进程数据而阻塞，导致无法 监听 receive 事件，
+				swoole_event_add() 第一个参数为 文件标识符， 即进程之间管道标识符
+				该方法只能对同一个标识符添加一次监听，不能多次调用，故不能在 receive 事件 中进行添加
+				
+	//添加 receive 事件监听			
+	$client->on('receive',function(swoole_client $cli,$data) use($process)
+					{
+						echo "Receive: $data";
+						
+						//$msg = $process->read(); #1
+						//var_dump($msg);
+						
+						echo "\n enter command:";
+						//var_dump($cli->send($msg));#2
+					}
+				);		
+	说明：
+		#1 #2 处代码： 使用$process->read() 同步模式进行读取，该模式下，只能将该读取操作放在 receive 事件处理函数，
+		这样才能保证 进程可以监听 receive 事件， 但在处理第一次该事件后 进程就会被	$process->read(); 阻塞
+		将无法再次获取下个信息，这样必须用户执行输入操作才能解除阻塞，但信息可能已丢弃而不会显示，
+			与 直接在 该处 使用	 
+					while(true)
+					{
+						fwrite(STDOUT,"enter command: ");
+						$msg =trim(fgets(STDIN));						
+						var_dump($cli->send($msg));
+						sleep(1);
+					}	
+			不同：
+				不使用子进程来获取用户的输入，则只能在有 receive 事件 触发时，并处理后，用户才可以进行输入，发送数据到服务端
+				若没有receive 事件，则用户始终无法执行任何操作
+	
+	  $client 为资源，无法在 子进程 中使用，故通过管道将数据输出到父进程，再由父进程发送到服务端，
+			若在子进程中直接使用 $client 发送数据， 则 $cli->send($msg) 将始终阻塞进程
+	
+	//执行连接操作		
+	$client->connect("127.0.0.1",8080);		
+	说明：
+		在执行 connect()方法后，不一定 $client 可用，因此 一些初始化操作 放在 连接成功事件回调函数	
+		而防止 子进程在初始化之前执行而干扰，因此在 初始化完成后 才执行 $process->start();	 启动进程
+		否则会出现如 Enter ID: enter command: 在等待输入 ID时，子进程提示输入命令 				

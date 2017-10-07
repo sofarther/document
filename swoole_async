@@ -1,0 +1,75 @@
+1.  Swoole\Async\MySQL 异步MYSQL：
+		 继承 Swoole\Async\Pool
+	(1) Swoole\Async\Pool:
+		a.构造函数：
+			 __construct($config = array(), $poolSize = 100)
+			初始化 config  和 poolSize 属性，
+					其中 config 用于 进行连接的配置信息，
+						poolSize 表示最大连接数
+				taskQueue  属性保存 \SplQueue 对象，用于 存储 在获取连接资源后要执行的函数队列
+				idlePool  属性保存 \SplQueue 对象，用于	存储 空闲的连接资源句柄
+		b.join($resource)
+			将传入的 资源句柄 保存到 resourcePool 数组中，并调用 release($resource)
+				该方法应在 资源已连接成功后 再调用
+		c. release($resource)，
+			将 $resource 保存到 idlePool  属性中，并判断若 taskQueue 队列中有任务，则调用 doTask()方法
+		d.doTask()
+			从 idlePool  属性 中依次取出一个空闲 的连接资源， 并通过 resourcePool 判断是否可用，
+				若 有可用的空闲的连接资源，则 从 taskQueue 取出一个 函数，调用该函数，并传入 该资源句柄
+			若全部都不可用，则
+			 	判断 若resourcePool 数组为空 ，则调用 createFunction 属性保存的 用于创建新连接资源的函数
+			 		其中 createFunction属性可通过 create($callback) 进行赋值
+		f. remove($resource)
+			从 resourcePool 数组中移除 资源
+		g.request(callable $callback)
+				$callback 为 在获取到 可用的空闲资源后，要执行的函数
+				将 	$callback  添加到 taskQueue  属性 中
+			判断 idlePool 是否为空，若不为空，则调用 doTask() 执行
+			否则 ，判断若 当前的连接数小于最大连接数时，则调用 createFunction	属性保存的 用于创建新连接资源的函数						 
+			
+			应在 传入的 $callback 回调函数中，在处理完任务后 调用 release($resource) 将使用的资源句柄重新保存到	idlePool 属性中
+	
+	(2)	Swoole\Async\MySQL:
+		a. 构造函数：
+				__construct($config, $maxConnection = 100)
+				其中  $config 需包含 host password user 等信息
+					$config = array(
+								'host' => '127.0.0.1',
+								'user' => 'root',
+								'password' => 'root',
+								'database' => 'swoole',
+							);
+				会先 调用 Swoole\Async\Pool 的构造函数，
+				然后调用 	Swoole\Async\Pool::create() 将 Swoole\Async\Pool::connect() 方法作为 创建新连接 的回调函数
+		b. connect()
+		 	先创建 \swoole_mysql 对象，
+		 	然后 添加 on("close",function()) 关闭连接监听回调方法，调用 Swoole\Async\Pool::remove()将当前连接移除
+		 	然后 调用  \swoole_mysql::connect(), 异步回调方法，
+		 			在该回调方法中，若连接成功 则调用 Swoole\Async\Pool::join() 方法 将当前连接添加到 连接池 中，
+		c. query($sql, callable $callabck)
+				其中 $callback 为 执行 $sql 语句成功 后处理函数，
+				在该方法中 调用  Swoole\Async\Pool::request() 方法，
+				将 \swoole_mysql::query($sql, function (\swoole_mysql $db, $result))	
+					封装到一个匿名函数 作为 待处理的回调函数 传入到 request() 方法 中，从而保存到 taskQueue 属性	
+					其中 \swoole_mysql::query() 的回调函数中需 将 使用过的资源重新放回到 idlePool  中	
+	(3)应用：
+			Swoole\Async\MySQL 只能用在cli 环境中，因此可以 在 使用 swoole 搭建 的服务器 中使用，
+			这样 Swoole\Async\MySQL 需常驻内存，即 在服务器启动时 已创建，
+							$config = array(
+						'host' => '127.0.0.1',
+						'user' => 'root',
+						'password' => 'root',
+						'database' => 'swoole',
+					);
+			 global $mysql_async; 		
+			 $mysql_async = new Swoole\Async\MySQL($config);
+			  	
+			然后在 控制器中直接使用：
+					global $mysql_async;
+					$user =model('User');
+					$sql = $user->select()->where('user_id>3')->limit(4)->getSql();
+					$mysql_async->query($sql, function($db, $result){
+					
+							var_dump($result);	
+			
+					}); 										 

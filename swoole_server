@@ -1,0 +1,570 @@
+需先引入 libs/lib_config.php 配置文件
+	调用 Swoole\Network\Server::setPidFile() 设置 PID文件的存储路径
+1.搭建HTTP服务器：
+	(1) Swoole\Http\ExtServer ：
+			基于 swoole框架MVC模式，使用swoole 扩展的 swoole_http_server对象监听 request 事件和处理请求事件 的http服务器：
+				保存请求参数 和返回响应数据的对象为 swoole扩展 的\swoole_http_request请求对象和 
+			 			\swoole_http_response响应对象
+				这两个对象在  onRequest 回调函数中 作为参数中传入
+		调用 Swoole\Network\Server::start(function())
+			在传入的回调函数中，调用\Swoole::runHttpServer($host = '0.0.0.0', $port = 9501,  $config)
+				来启动服务器，其中$config需指定 document_root
+			在	Swoole\Network\Server::start() 方法中，
+				先通过PID文件 获取该进程的PID ，然后获取到命令行参数，并通过 libs/module/GetOptionKit,
+				工具来解析命令行参数，判断是启动、停止或重启等
+				当为启动时，则将解析后返回的配置数组保存到 $options 属性中，并调用 回调函数
+		a. \Swoole::runHttpServer() 方法：
+				会创建 Swoole\Http\ExtServer 对象，并保存到 http 和 ext_http_server 属性中，
+				然后 Swoole\Network\Server::$useSwooleHttpServer设置为true
+				创建 Swoole\Network\Server($host, $port); 对象，
+					在构造函数中，当 $useSwooleHttpServer 为true 时，则会创建 \swoole_http_server 对象保存到
+					sw属性，否则会创建\swoole_server，保存到sw属性
+				调用 Swoole\Network\Server的setProtocol()方法，将 http属性保存的 Swoole\Http\ExtServer 对象
+					设置为 Swoole\Network\Server 的 protocol属性，
+					在该方法中，当$useSwooleHttpServer设置为true时，则直接赋值，否则将调用父类Swoole\Server\Base
+					的setProtocol() 方法，在该方法中除了会设置protocol属性，还会将当前的Swoole\Server\Base 类对象
+					赋值到protocol属性指定的对象 的server属性
+				最后调用	Swoole\Network\Server的run($config)方法
+				
+		b.	Swoole\Network\Server的run($config)		
+				在该方法中
+					先对服务器运行配置参数进行整理，然后调用sw 属性 对象 set()方法 设置服务器参数
+					
+					然后会 对sw 属性 对象 注册事件回调函数来处理http请求：
+							ManagerStart ：设置进程名
+							Start: 调用Swoole\Network\Server::onMasterStart 方法
+									在该方法中，当protocol属性 对象存在 onMasterStart 方法时，则会调用该方法
+										Swoole\Http\ExtServer 没有该方法
+							Shutdown/ManagerStop： 调用Swoole\Network\Server::onMasterStop方法	
+										在该方法中，当protocol属性 对象存在 onMasterStop 方法时，则会调用该方法
+												Swoole\Http\ExtServer 没有该方法	
+							WorkerStart：调用Swoole\Network\Server::onStart 方法	
+										在该方法中，当protocol属性 对象存在 onStart 方法时，则会调用该方法
+												Swoole\Http\ExtServer 没有该方法	
+										调用Swoole\Network\Server::onWorkerStart 方法	
+										在该方法中，当protocol属性 对象存在 onWorkerStart 方法时，则会调用该方法
+												Swoole\Http\ExtServer 没有该方法	
+							若	当protocol属性 对象 onConnect 方法 可调用时，则
+										会在	sw 属性 对象 注册	Connect 的回调方法为 protocol属性 对象 onConnect 方法
+											Swoole\Http\ExtServer 没有该方法	
+							若	当protocol属性 对象 onClose 方法 可调用时，则
+										会在	sw 属性 对象 注册	Close 的回调方法为	protocol属性 对象 onClose 方法
+											Swoole\Http\ExtServer 没有该方法	
+							若 	$useSwooleHttpServer 为true时，则	
+									会在	sw 属性 对象 注册	Request 的回调方法为 protocol属性 对象 onRequest 方法
+											Swoole\Http\ExtServer 的onRequest 方法，
+													并会传入swoole扩展产生的\swoole_http_request请求对象和 
+														\swoole_http_response响应对象
+												在该方法中会 创建 Swoole\Request 和	Swoole\Response对象 
+														并赋值到Swoole::$php 的request 和	response属性
+														然后调用Swoole\Http\ExtServer 的	assign()方法
+															将	\swoole_http_request请求对象 中的请求参数赋值到
+																Swoole::$php 的request属性指定的 Swoole\Request 对象
+														然后调用	Swoole::runMVC()方法处理请求，在该方法中，由于定义了
+																SWOOLE_SERVER 常量，故会将结果返回，而不是直接输出
+														最后通过	\swoole_http_response响应对象设置头部信息，并输出	
+							
+							若 	$useSwooleHttpServer 为false时，则	
+										会在	sw 属性 对象 注册	Receive 的回调方法为 protocol属性 对象 onReceive 方法	
+											Swoole\Http\ExtServer 没有该方法	
+							若	当protocol属性 对象 WorkerStop 方法 可调用时，则
+										会在	sw 属性 对象 注册	WorkerStop 的回调方法为	protocol属性 对象 WorkerStop 方法
+											Swoole\Http\ExtServer 没有该方法
+											
+							若	当protocol属性 对象 onTask 方法 可调用时，则
+										会在	sw 属性 对象 注册	
+											Task 的回调方法为	protocol属性 对象 onTask 方法
+										和
+											Finish 的回调方法为	protocol属性 对象 onFinish 方法
+								 Swoole\Http\ExtServer 没有该方法
+				最后将 sw属性对象赋值到 $swoole 静态属性，并执行 sw属性对象 的start()方法开启服务器
+					当调用成功时，则返回true ,并会创建worker_num+2个进程。
+							Master进程+Manager进程+serv->worker_num个Worker进程	
+							其中	worker_num 大于或等于4, 当没有设置时，则为4	
+			说明：
+				I. onWorkerStart和onStart回调是在不同进程中并行执行的，不存在先后顺序。
+					在onStart中创建的全局资源对象不能在worker进程中被使用，因为发生onStart调用时，worker进程已经创建好了。
+						新创建的对象在主进程内，worker进程无法访问到此内存区域。
+						因此全局对象创建的代码需要放置在swoole_server_start之前
+				II.1.7.5+ Master进程 onMasterConnect/onMasterClose2个事件回调 彻底移除。Master进程内不再保留任何PHP的接口。	
+				
+				III.\Swoole\Swoole::reloadController()方法中，若没有 添加runkit 扩展，
+				 			或者 没有Swoole::$server属性的配置文件的auto_reload 
+						
+							则 在 当修改了 请求的控制器方法 的代码时，修改不会生效，
+					其中 Swoole::$server 不会在  Swoole\Http\ExtServer 构造函数中被赋值，只在  Swoole\Protocol\HttpServer 中赋值		
+					 因此 会导致 在	Swoole\Http\ExtServer  启动后，对控制器代码的修改始终无法生效
+				IV.当在 	请求的控制器方法 中使用 了  如die exit 等停止执行的语句时， 则之前的输出内容，不会在浏览器中进行输出，
+						而会输出到 终端
+					当在 	请求的控制器方法 中使用 了只能在cli 模式下的类，如 Swoole\Async\MySQL ,则 该类对象的异步方法 中的输出内容将输出到
+						终端，而不会输出到浏览器  							
+  (2) Swoole\Protocol\HttpServer：
+  	   指定请求特定某个具体文件名 ，使用 \swoole_server 监听 receive 事件 和处理该事件的 onReceive 处理函数 的Http服务器：
+  
+  		请求数据 会在 onReceive 回调函数时传入，然后 在回调函数中将请求数据封装到 \Swoole\Request对象 
+  		A.修改在调用 Swoole\Network\Server::start(function()) 的回调函数：
+  			先 创建 Swoole\Protocol\HttpServer 对象，
+  			
+  			然后调用基类 Swoole\Protocol\WebServer
+  			  loadSetting()加载配置文件，
+  			 setDocumentRoot并设置网站根目录
+  			然后 调用 Swoole\Network\Server::autoCreate($host, $port, $ssl = false) 
+  				在该方法中会依次判断，来返回的不同的对象：
+  					默认使用swoole扩展,其次是libevent,最后是select(支持windows)
+  					对应的对象为 Swoole\Network\Server  Swoole\Network\EventTCP Swoole\Network\SelectTCP
+  					其中 在创建Swoole\Network\Server对象时，构造函数中会 创建\swoole_server，保存到sw属性，而不是\swoole_http_server 
+  			然后调用 Swoole\Network\Server::autoCreate 返回的对象的setProtocol()方法，
+  				将 Swoole\Protocol\HttpServer 对象 设置为 Swoole\Network\Server 的 protocol属性，
+  				并将  Swoole\Protocol\HttpServer 的$server属性 初始化为 Swoole\Network\Server 对象
+  			并调用该返回对象的run()方法	
+  		
+  		B.Swoole\Protocol\HttpServer :
+  					继承 Swoole\Protocol\WebServer 实现了 Swoole\IFace\Protocol	
+  					在 Swoole\Protocol\WebServer 构造函数中定义常量 SWOOLE_SERVER
+  						 define('SWOOLE_SERVER', true);
+  			定义的监听事件的回调方法：
+  				a.onStart($serv, $worker_id = 0)	
+  					$serv 为\swoole_server 对象
+  					会将该对象赋值到 swoole_server 属性，并将当前的 Swoole\Protocol\HttpServer 对象赋值到 \Swoole的 server 属性
+  					注册错误处理函数为	Swoole\Protocol\HttpServer ::onErrorHandle 方法
+  					注册 PHP进程结束时调用的函数： 
+  						register_shutdown_function(array($this, 'onErrorShutDown'));
+  					 onShutdown 事件为 服务器关闭程序终止时最后一次事件	
+  				b. onReceive($serv, $client_id, $from_id, $data)
+  						$client_id 为 TCP客户端连接的唯一标识符
+  						$from_id   为TCP连接所在的Reactor线程ID
+  						$data 收到的数据内容，可能是文本或者二进制内容
+  					 I.调用checkData($client_id, $data) 检测请求数据的完整性：
+  					 		会通过 buffer_header 数组属性缓存请求头信息， TCP 可能会同时收到多个请求包，也可能只收到一个请求包的一部分数据
+  					 				因此会将当前客户端的请求包头信息保存，并当同一个请求的请求包到达时，会对该数组指定的元素拼接，
+  							并返回拼接后的结果，在调用 checkHeader($client_id, $http_data)，传入
+  					
+  					II.checkHeader($client_id, $http_data)	
+  						
+  								当为新连接时，则 requests 属性数组中没有 $client_id 索引，
+  									查看 传入的 数据信息 是否存在 HTTP结束符
+  									若没有直接返回 false
+  									否则
+  										将 属性 buffer_header[$client_id] 置为 空字符串
+  										创建 Swoole\Request 对象，
+  										将接受到的请求数据 以 HTTP_EOF 常量属性 进行分割，
+  											并将请求体数据赋值到 Swoole\Request 的body 属性，
+  										然后通过 parser 属性(Swoole\Http\Parser 对象)	对头部信息解析，
+  										保存到  Swoole\Request 的header 属性 ，
+  											且将 header 属性 的第一个元素 数据保存到 Swoole\Request meta属性
+  												 		并删除该元素
+  										将	Swoole\Request 对象 保存到 requests 属性数组,以	 $client_id 为索引
+  										若	头部信息解析 失败，则返回false
+  							若 requests 属性数组中已有 $client_id 索引， 则获取该索引的元素
+  									即 Swoole\Request 对象，并将请求的数据拼接到该对象的body 属性
+  						返回	Swoole\Request 对象
+  					III. 当	checkHeader() 方法返回false 时，则将返回拼接后的请求数据保存到 buffer_header[$client_id] 属性
+  								当 请求数据超过最大HTTP头限制， 则返回 错误标识，否则返回等待标识
+  						当checkHeader() 方法返回 Swoole\Request 对象 时，则	
+  							当为POST 请求时，会调用checkPost() 方法
+  									在该方法中 通过判断 header['Content-Length'] 和	Swoole\Request 的body 属性
+  									是否相同，判断是否是否请求数据完整，
+  									若没有，则返回	等待标识
+  						若数据完整时，则 checkData() 方法返回 完整的标识
+  					
+  					IV.当 checkData() 返回 错误标识 ，则会调用 $server属性(\Swoole\Network\Server对象) 的close($client_id)关闭连接
+  								会触发onClose 事件，Swoole\Protocol\HttpServer 的onClose($serv, $client_id, $from_id)
+  									处理方法会清空 buffer_header[$client_id] 和	 requests[$client_id]	
+  								然后返回空
+  							当返回 等待标识时，则只返回空
+  							当返回  完整的标识时，则获取 requests[$client_id] 属性中保存的	Swoole\Request 对象	
+  									将 $client_id 赋值到 	Swoole\Request 对象 的fd 属性，
+  									调用 \swoole_server 的 connection_info($client_id) 获取连接信息
+  									并保存到  	Swoole\Request 对象 的server['SWOOLE_CONNECTION_INFO']属性	
+  									然后依次对 Swoole\Request 对象 的remote_ip remote_port	属性赋值，
+  									并封装  Swoole\Request 对象的 server属性 对应的 Server变量
+  						  //$request->setGlobal();			
+  						然后调用 parseRequest($request) 解析请求
+  					V. parseRequest($request)
+  						先 解析 $request->meta['uri'] 获取路径信息，和请求参数
+  						然后判断 是否为POST请求，若为POST请求，则
+  								然后通过 parser 属性(Swoole\Http\Parser 对象) parseBody()解析，
+  						若存在 Cookie, 则 调用 parser 属性 parseCookie() 解析Cookies
+  					VI. 调用 onRequest($request) 处理请求：
+  							先创建 Swoole\Response对象， 并将该对象 和 传入的 Swoole\Request 赋值到 \Swoole::response 和request 属性
+  							然后先调用doStaticRequest(), 判断请求路径 的一级目录是否为deny_dir 数组属性中的键名且键值为true,即禁止访问，
+  										若是，则 设置返回码 403，并返回true
+  									  否则判断是否为static_dir 数组属性 中的键名且键值为 true, 即静态目录，
+  									  		或 扩展名 为 static_ext 数组属性中保存的键名
+  									  	 若是， 则调用 processStatic()处理静态资源
+  									  	否则 返回 false
+  							若	doStaticRequest() 返回 false ,则 判断请求的文件的扩展名是否为 dynamic_ext 数组属性中保存的键名，
+  										或 扩展名 为空
+  									则 调用processDynamic() 处理
+  										先获取网站根目录， 并拼接请求的路径，得到目标文件，
+  										若目标文件存在，
+  											则使用 include 引入该文件，即执行该文件，
+  											并将 执行输出内容 赋值到  传入 的 Swoole\Response参数 对象的 body 属性		  	 
+  										若不存在，则设置状态码 404，
+  						最后返回 	Swoole\Response对象
+  				  VII. 最后Swoole\Protocol\HttpServer 的  response()方法	
+  				  		 在该方法中设置响应头，并将 响应头 和 	Swoole\Response参数 对象的 body 值 拼接，
+  				  		 然后通过$server属性(\Swoole\Network\Server对象) 的 send($request->fd, $out) 发送到客户端
+  				  		 最后调用 Swoole\Protocol\HttpServer 的  afterResponse()方法
+  				  		 		在该方法中调用 server 属性的close()方法 关闭 连接， 并清空 requests[$request->fd] 和
+  				  		 			 Swoole\Request 对象 Swoole\Response 对象
+  				  		 								 			
+  				c. 其他监听方法：
+  					onShutdown($serv) 
+  					onConnect($serv, $client_id, $from_id)
+  					 onClose($serv, $client_id, $from_id)
+  		说明：
+  			 a.框架需修改位置： 
+  			 		在调用	 parseRequest($request) 解析请求之前，不能	先调用 Swoole\Request 对象的setGlobal();
+  			 				   该方法是将  	Swoole\Request 对象的 get post files cookie server 属性依次赋值到
+  			 				  全局变量： $_GET $_POST $_FILES $_COOKIE $_SERVER 
+  			 				  而此时 	Swoole\Request 对象的 get post files cookie  属性 还没有赋值，
+  			 		故 需要 在调用	 parseRequest($request) 之后 才调用	Swoole\Request 对象的setGlobal();
+  			 b. 在处理静态文件时，会加上响应的缓存头信息，其中 Last-Modified 字段 使用 'D, d-M-Y H:i:s T' 进行格式化时间，
+  			 		而 其中 T 表示使用 CST时区时间， 该时间转化后的时间字符串 显示是当前时区的时间，但再次通过 strtotime()进行解析时，
+  			 		会输出西六区的时间戳，这样在对文件修改的时间戳比较时，会比记录的修改时间大 14个小时，导致文件即使修改后仍会读取缓存	
+  			 c.	Swoole\Protocol\HttpServer 继承	Swoole\Protocol\WebServer ,
+  			 		而 Swoole\Protocol\WebServer 继承 Swoole\Protocol\Base 
+  			 		在 Swoole\Protocol\Base 中定义的 run() daemonize() task() 方法都会直接调用该对象的 $server属性
+  			 			指定 的  Swoole\Network\Server 的相应方法
+  			 			
+  			 			
+  (3) Swoole\Protocol\AppServer: 继承 Swoole\Protocol\HttpServer
+  		基于 swoole框架MVC模式，使用 \swoole_server 监听 receive 事件 和处理该事件的 onReceive 处理函数 的Http服务器： 
+  		a.实例化：
+  				可以通过 Swoole\Protocol\WebServer::create()方法来创建 Swoole\Protocol\AppServer 对象，
+  					在该方法中，先通过 $opt = getopt('m:h:p:d:'); 获取命令行 参数，
+  						当 在 作为 Swoole\Network\Server::start() 的回调函数时 执行时，
+  							由于 第一个参数必须为 start stop reload ，所以 选项参数只能在其后添加
+    						但 此时 不能通过 getopt()函数获取 非选项参数后的选项参数
+    						故$opt 始终为空， 以上的选项参数  已没有任何意义，
+    						除了m 指定的fastcgi 模式外，其他参数通过配置文件进行设置
+    						但 m 无法进行设置，始终为空，默认会赋值为 server 表示创建 Swoole\Protocol\AppServer 对象
+    				 然后会调用 Swoole\Network\Server::autoCreate() 方法创建 Swoole\Network\Server 对象
+    				 	并调用该对象的 setProtocol() 将Swoole\Protocol\AppServer 对象设置为其	protocol 属性
+    				 最后返回 Swoole\Protocol\AppServer 对象	
+    	b.配置 设置应用路径 和根路径：
+    			调用 Swoole\Protocol\WebServer::setAppPath()
+    				Swoole\Protocol\WebServer::setDocumentRoot($path)	
+    			最后可以直接调用 Swoole\Protocol\AppServer 的run()方法 来启动服务器				
+  		c.重写了 onRequest()函数，
+  		  在该函数中调用 \Swoole:: handlerServer($request) 方法，
+  		  		创建 Swoole\Response 对象，
+  		  		当在配置文件中开启了处理静态文件时，则先会调用 Swoole\Protocol\HttpServer的oStaticRequest()方法处理
+  		  	然后调用	Swoole::runMVC()方法处理请求，将返回该处理结果保存到 Swoole\Response  的body 属性中，
+  		  	然后设置响应头信息，最后返回该 Swoole\Response 对象
+  	(4)	Swoole\Protocol\AppFPM  继承 Swoole\Protocol\FastCGI 
+  			用于处理 fastcgi 请求，不能直接通过浏览器访问
+  			a.在 作为 Swoole\Network\Server::start() 的回调函数中，不能通过Swoole\Protocol\WebServer::create()
+  				方法来实例化，只能自行实例化该对象
+  			b. 该对象是通过 	Swoole\Protocol\FastCGI:: onReceive($serv, $fd, $from_id, $data) 
+  					来接受请求，
+  					在该方法中 会调用 parseRecord() 方法处理请求数据，
+  					然后创建 Swoole\Request 对象，封装解析后的请求数据，
+  					然后会调用 onRequest()方法，处理请求，返回Swoole\Response对象
+  					最后通过Swoole\Response对象 返回响应结果
+  			c. Swoole\Protocol\AppFPM::onRequest(Swoole\Request $request)
+  					 在该函数中调用 \Swoole:: handlerServer($request) 方法
+  			d. 配置 ngnix 发送fastcgi 请求到该服务器处理php文件：
+  				server{
+						 listen 80;
+						 root /home/sofar/public_html/swoole;
+						 server_name cgi.swoole.com;
+						 index index.php index.html;
+							location / {
+	
+								if (!-e $request_filename) {
+									rewrite ^/(.*)$ /index.php;
+								}
+							 }
+							location ~ \.php$ {
+				 
+								fastcgi_pass 127.0.0.1:9501;
+							
+						   		 fastcgi_param  SCRIPT_FILENAME  $document_root$fastcgi_script_name;
+							 	fastcgi_index  index.php;
+				 				 include fastcgi_params;
+			 			}
+ 					}	
+ 			说明：
+ 				无法在 Swoole\Protocol\AppFPM 服务器中获取请求发送的GET和POST参数	
+ 				
+ 2.WebSocket服务器：
+ 	(1) Swoole\Protocol\WebSocket 继承  Swoole\Protocol\HttpServer	
+ 				该类为抽象类， 需实现 onMessage($client_id, $message) 方法
+ 				通过使用 swoole 扩展的 swoole_server对象监听处理请求
+ 		a. 已重写的方法：
+ 				I.onReceive($server, $fd, $from_id, $data)
+ 					先判断 connections 数组属性中是否 存在 $fd 索引，
+ 						若没有则调用 Swoole\Protocol\HttpServer::onReceive() 方法处理
+ 							因此会调用 重写的 onRequest() 和 afterResponse() 方法
+ 					否则
+ 						循环判断 strlen($data) > 0 and isset($this->connections[$fd]
+ 							对传入的 $data 数据进行拼接，
+ 								其中 $data 值会在 parseFrame(&$data) 修改
+ 								
+ 							先判断frame_list 数组属性中是否存在 $fd 索引，
+ 								若没有则表示为新的请求
+ 									调用 parseFrame(&$data)  解析数据帧
+ 										在该方法中 当 数据完整 时，会调用parseMessage($frame)方法 解析，并返回
+ 											$frame数组，其中 $frame['data'] 为已接受的数据（可能为部分数据）
+ 									当返回的 结果表示  数据完整，则调用 opcodeSwitch($fd, &$frame)，
+ 										当 $frame 的 opcode 键值 表示 为 数据frame
+ 												且 0x1 === $frame['fin']	
+ 													则 会调用 onMessage($client_id,$frame)方法	
+ 														其中 $frame['message']为接受到的数据
+ 										当 $frame['opcode'] ==  OPCODE_PING,时，
+ 											调用 send($client_id, $message, 
+ 														$opcode = self::OPCODE_TEXT_FRAME,
+ 														 $end = true)
+ 											 	 在该方法中 会调用 newFrame 创建一个数据 frame ,
+ 											 	 	然后调用 $server属性的 send()方法发送到客户端
+ 									当返回的 结果表示 数据没有完整时，则 将解析后返回的数据frame 保存到 frame_list 数组中
+ 									 键名为 $fd
+ 							   若frame_list 数组属性中存在 $fd 索引，则将接受到的 $data 拼接到 保存的 frame 的data 键值
+ 							    当 该 frame 的 data 键值长度大于或等于 frame 的 length 指定的值时，表示数据已完整
+ 							    		 		   然后调用 parseMessage($frame)方法 和 opcodeSwitch($fd, &$frame)
+ 				II. onRequest(Swoole\Request $request)	
+ 						该方法在 客户端进行连接时 在Swoole\Protocol\HttpServer::onReceive() 方法中调用
+ 						当为 webSocket 连接时，将调用 onWebSocketRequest(Swoole\Request $request) 处理
+ 								在该方法中 先创建  Swoole\Response() 对象赋值到 currentResponse属性，
+ 								 然后会调用 doHandshake()  根据请求的头部信息，设置 响应对象的头部信息，
+ 								 	状态码设置为 101
+ 						当不是 webSocket连接时，则会调用  onHttpRequest(Swoole\Request $request)
+ 									即 	Swoole\Protocol\HttpServer::onRequest($request) 方法
+ 				III. afterResponse(Swoole\Request $request, Swoole\Response $response)
+ 						该方法在	客户端进行连接时	在Swoole\Protocol\HttpServer::response() 方法中调用	
+ 						当为 webSocket 连接时，
+		 							$conn = array('header' => $request->header, 'time' => time());
+				   					$this->connections[$request->fd] = $conn;
+           					保存当前连接信息 到 connections 数组属性
+           					然后调用 onWsConnect($client_id, $request)，
+           						在该方法中 会调用  onEnter($client_id) 
+           					当 保存的连接数 大于最大连接数时，将调用 cleanConnection()
+           						调用 close($fd, $code = self::CLOSE_NORMAL, $reason = '')
+           						关闭 连接信息中的 time 时间过期 的连接 （小于 $heart_time属性指定的过期时间）
+           					
+           				最后调用	Swoole\Protocol\HttpServer::afterResponse($request, $response);	
+			 	 IV. 其他重写的方法 
+			 	 		onClose($serv, $client_id, $from_id)
+			 	 			会调用 onExit($client_id); 方法
+			 说明：
+			 	只有在 客户端进行连接操作时，才会调用	Swoole\Protocol\HttpServer::onReceive() 方法处理， 					    	进而调用 重写的 onRequest() 和 afterResponse() 方法
+			 	而在发送数据时，则会通过 Swoole\Protocol\WebSocket::onReceive($server, $fd, $from_id, $data)
+			 		方法处理，不会再调用 	onRequest() 和 afterResponse() 方法 
+		b.onMessage($client_id, $message) 
+			可以通过实现该方法来处理数据，其中 
+					$message['message']	 为接受的数据内容	
+
+	
+	(2)	使用swoole 扩展的 \swoole_websocket_server对象监听和处理 连接、消息 事件  的websocket服务器：
+				
+			a.	\swoole_websocket_server对象 
+					继承自 swoole_http_server， 
+					I.监听的事件： 
+						i. onMessage(swoole_websocket_server $server, $frame)
+								该事件为必须监听的事件，作为接受客户端数据 的message 事件的回调函数 
+								其中 $server 为监听事件的swoole_websocket_server 对象
+									$frame 为接受的数据对象：woole\WebSocket\Frame对象
+										主要有的属性：
+												{$frame->fd}:发送信息的客户端 保存在 swoole_websocket_server 的$connections属性中的标识
+												{$frame->data}：客户端发送的数据
+												{$frame->opcode}：操作标识
+												{$frame->finish} 是否数据已完整
+						ii.onOpen(\swoole_websocket_server $server, $request)
+								open事件回调函数，该事件可选
+									$request->fd 为 客户端 标识
+						iii.onHandShake(\swoole_http_request $request, \swoole_http_response $response)		
+						
+							 handshake 事件在开始连接时触发该监听，用于设置 WebSocket连接返回的响应头信息
+							可以不对该事件进行监听，但若添加了该监听 则如果没有设置正确的响应头信息，则将无法建立和客户端的连接
+							若添加了该监听 则不会调用 监听open 事件的回调方法 onOpen()
+							open事件 和  handshake 事件 可以同时都不进行监听，
+							
+							传入的参数 \swoole_http_request 包含的信息：	
+							  ["fd"]=>int(1)
+						  	  ["header"]=>
+									array(13) {
+									  ["host"]=>
+									  string(14) "127.0.0.1:9501"
+									  ["connection"]=>
+									  string(7) "Upgrade"
+									  ["pragma"]=>
+									  string(8) "no-cache"
+									  ["cache-control"]=>
+									  string(8) "no-cache"
+									  ["upgrade"]=>
+									  string(9) "websocket"
+									  ["origin"]=>
+									  string(23) "http://local.swoole.com"
+									  ["sec-websocket-version"]=>
+									  string(2) "13"
+									  ["user-agent"]=>
+									  string(104) "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36"
+									  ["dnt"]=>
+									  string(1) "1"
+									  ["accept-encoding"]=>
+									  string(23) "gzip, deflate, sdch, br"
+									  ["accept-language"]=>
+									  string(14) "zh-CN,zh;q=0.8"
+									  ["sec-websocket-key"]=>
+									  string(24) "3f0reRXTMTajbAXoVWg0FA=="
+									  ["sec-websocket-extensions"]=>
+									  string(42) "permessage-deflate; client_max_window_bits"
+								}
+							["server"]=>
+									array(10) {
+									  ["request_method"]=>
+									  string(3) "GET"
+									  ["request_uri"]=>
+									  string(1) "/"
+									  ["path_info"]=>
+									  string(1) "/"
+									  ["request_time"]=>
+									  int(1507083553)
+									  ["request_time_float"]=>
+									  float(1507083553.0898)
+									  ["server_port"]=>
+									  int(9501)
+									  ["remote_port"]=>
+									  int(43062)
+									  ["remote_addr"]=>
+									  string(9) "127.0.0.1"
+									  ["server_protocol"]=>
+									  string(8) "HTTP/1.1"
+									  ["server_software"]=>
+									  string(18) "swoole-http-server"
+									}
+						["data"]=>
+						string(500) "GET / HTTP/1.1 Host: 127.0.0.1:9501 Connection: Upgrade Pragma: no-cache Cache-Control: no-cache Upgrade: websocket Origin: http://local.swoole.com  Sec-WebSocket-Version: 13
+User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36
+DNT: 1  Accept-Encoding: gzip, deflate, sdch, br Accept-Language: zh-CN,zh;q=0.8  Sec-WebSocket-Key: 3f0reRXTMTajbAXoVWg0FA==
+Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits"
+						
+						
+						\swoole_http_response 包含的信息： ["fd"]=> int(1)
+						
+						
+						在该处理函数中，需通过 \swoole_http_request 的 hearder 数组属性中的 sec-websocket-key 值，进行处理，
+						并 通过\swoole_http_response 的status() 和 header() 方法设置 响应的状态码和响应头信息
+							可参照 Swoole\Protocol\WebSocket::doHandshake() 方法进行设置
+							$response->status(101);
+							$response->header('Upgrade', 'websocket');
+							$response->header('Connection', 'Upgrade');
+				
+							$response->header('Sec-WebSocket-Accept', base64_encode(sha1($key . static::GUID, true)));
+							$response->header('Sec-WebSocket-Version', self::WEBSOCKET_VERSION); 
+						最后调用
+							 $response->end(); 发送到客户端	
+							 
+					iv. onRequest(swoole_http_request $request, swoole_http_response $response)
+						作为 WebSocket服务器则可以不设置该监听方法
+						若设置了onRequest回调，websocket服务器也可以同时作为http服务器，
+    	   
+			    II.属性 $connections 保存连接到该服务器的所有客户端连接fd，
+			    		
+			    		在  \swoole_server 中定义， 为swoole_connection_iterator 对象
+			    		只能通过 foreach 进行遍历, 不能通过索引访问
+			    		foreach($server->connections as $key=>$val)
+							{
+								var_dump($key); //int(1)
+								var_dump($val);// int(1)
+							}			
+						$key 和$val 类型都为整数
+				III.方法：
+						push(int $fd, string $data, int $opcode = 1, bool $finish = true)	
+						发送数据到客户端，
+						其中 $opcode 指定发送数据内容的格式，默认为文本。
+								发送二进制内容$opcode参数需要设置为WEBSOCKET_OPCODE_BINARY
+						pack(string $data, int $opcode = 1, bool $finish = true, bool $mask = false)
+						返回打包好的WebSocket数据包，可通过Socket发送给对端
+							 $opcode 表示 WebSocket的opcode指令类型，1表示文本，2表示二进制数据，9表示心跳ping
+						unpack(string $data)
+							解析失败返回false，解析成功返回Swoole\WebSocket\Frame对象
+			b.整合到swoole框架：
+				I. 定义 监听 事件回调函数的类：Swoole\Protocol\WebServer
+						由于 onRequest(swoole_http_request $request, swoole_http_response $response)
+							的参数类型与 Swoole\Protocol\WebSocket 或 woole\Protocol\HttpServer 不同，
+							故不能直接继承该类，	Swoole\Protocol\WebSocket 和		woole\Protocol\HttpServer 
+							的onRequest() 方法的调用 是通过 监听onReceive()事件来调用的，而非实现的接口必须方法
+						可以通过继承 Swoole\Protocol\WebServer 类
+				II. 修改Swoole\Network\Server， 定义一个$useSwooleWebSocketServer属性标识使用	 \swoole_websocket_server对象
+				    作为监听服务器，并设置为 sw 属性，该属性为protected, 但会赋值到 $swoole 的静态属性，
+				    	故可以在 外部 通过该属性访问	\swoole_websocket_server对象，及其$connections 属性
+				    然后在 run()方法中 添加 \swoole_websocket_server对象的message open handshake 等监听事件回调函数		
+							
+							 							 
+	(3)	客户端：
+			a.可以直接在浏览器中通过 js 创建 WebSocket 对象，进行连接和发送接受数据
+					var websocket = new WebSocket(wsServer); 
+					websocket.onopen = function (evt) { 
+						console.log("Connected to WebSocket server.");
+					}; 
+
+					websocket.onclose = function (evt) { 
+						console.log("Disconnected"); 
+					}; 
+
+					websocket.onmessage = function (evt) { 
+						console.log('Retrieved data from server: ' + evt.data); 
+					}; 
+
+					websocket.onerror = function (evt, e) {
+						console.log('Error occured: ' + evt.data);
+					};
+				其中 在	onmessage 的回调函数中， 返回的数据是保存在 传入的参数的 data 属性中
+					在连接时 发送的头部信息：
+							 ["Host"]=>
+							  string(14) "127.0.0.1:9443"
+							  ["Connection"]=>
+							  string(7) "Upgrade"
+							  ["Pragma"]=>
+							  string(8) "no-cache"
+							  ["Cache-Control"]=>
+							  string(8) "no-cache"
+							  ["Upgrade"]=>
+							  string(9) "websocket"
+							  ["Origin"]=>
+							  string(23) "http://local.swoole.com"
+							  ["Sec-WebSocket-Version"]=>
+							  string(2) "13"
+							  ["User-Agent"]=>
+							  string(104) "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36"
+							  ["DNT"]=>
+							  string(1) "1"
+							  ["Accept-Encoding"]=>
+							  string(23) "gzip, deflate, sdch, br"
+							  ["Accept-Language"]=>
+							  string(14) "zh-CN,zh;q=0.8"
+							  ["Sec-WebSocket-Key"]=>
+							  string(24) "B9kfXUKDgYCw+AIE76kgmQ=="
+							  ["Sec-WebSocket-Extensions"]=>
+							  string(42) "permessage-deflate; client_max_window_bits"
+
+			b.也可以 在命令行 通过  Swoole\Async\WebSocket() 或 Swoole\Client\WebSocket对象进行连接访问
+					其中  Swoole\Async\WebSocket 继承于 Swoole\Client\WebSocket
+				 而且 可以与 浏览器中使用 js 连接的客户端进行通信
+				 监听事件：
+				 	I.on('open', function(Swoole\Async\WebSocket $o, $header)						   							其中 $header 是在回调时，自动传入的头部信息：
+				 			 ["Origin"]=>
+								  string(4) "null"
+								  ["Host"]=>
+								  string(14) "localhost:9443"
+								  ["Sec-WebSocket-Key"]=>
+								  string(24) "WUlMYzR4bk0vQmlpRjhQIg=="
+								  ["User-Agent"]=>
+								  string(27) "SwooleWebsocketClient/0.1.4"
+								  ["Upgrade"]=>
+								  string(9) "Websocket"
+								  ["Connection"]=>
+								  string(7) "Upgrade"
+								  ["Sec-WebSocket-Protocol"]=>
+								  string(4) "wamp"
+								  ["Sec-WebSocket-Version"]=>
+								  string(2) "13"
+	 				II. on('message', function(Swoole\Async\WebSocket $o, $frame)
+	 					其中 返回的数据是保存在 传入的$frame->data 属性中
+	 	说明：
+	 		在 客户端判断是否为 WebSocket连接时，是通过 Swoole\Request 的isWebSocket() 方法
+	 			在该方法中 通过判断头部信息是否有 Upgrade 字段，且该字段小写转化后为 websocket
+	 				来确定的 				
