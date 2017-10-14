@@ -1,0 +1,10 @@
+1.在函数中 会有默认的 静态局部变量 __func__
+int add(int num1, int num2)
+{
+	std::cout << "Enter function " << __func__ << std::endl;
+	return num1 + num2;
+}
+也可以 在类方法中使用， 返回 纯的方法名
+2. 虚函数不能 声明为 const
+3. 函数 返回 vector 指定的元素的引用时， 当向 vector 中添加元素时，导致 该元素的地址改变，
+	因此 当 对 返回的引用 变量修改， 不会影响到 vector 中的该元素
