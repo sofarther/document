@@ -7,4 +7,47 @@ int add(int num1, int num2)
 也可以 在类方法中使用， 返回 纯的方法名
 2. 虚函数不能 声明为 const
 3. 函数 返回 vector 指定的元素的引用时， 当向 vector 中添加元素时，导致 该元素的地址改变，
-	因此 当 对 返回的引用 变量修改， 不会影响到 vector 中的该元素
+	因此 当 对 返回的引用 变量修改， 并不会影响到 vector 中的该元素，
+	不要将对象直接放到 集合中， 而使用 指向对象的指针或 智能指针
+4.必须在构造函数初始化列表中 进行初始化：
+		(1) const 数据成员
+		(2)引用类型数据成员
+		(3) 没有默认构造函数 的对象数据成员
+		(4) 没有默认构造函数 的父类
+	构造函数的初始化列表  按照 在类中声明的属性 顺序进行初始化 ,而不是 初始化列表顺序	
+5. C++11 中 构造函数中 使用 std::initializer_list<T> 作为参数，
+	std::initializer_list<T> 位于 initializer_list 头文件
+		PointSequence(initializer_list<double> args)
+			
+	此时，不能使用 
+		PointSequence p2(2.5,6.8,3.5,5.6);	
+	形式进行初始化	
+	 当 std::initializer_list<T> 为第一个参数 ，其他参数为带有默认值的参数时，
+	 可以使用
+		PointSequence p1={1.0,2.0,3.0,4.0,5.0,6.0};
+		
+	若参数列表中有其他没有默认值的参数时，
+			PointSequence(initializer_list<double> args,int k, char c)
+	则使用该形式：
+		initializer_list<double> params={2.5,4.7,5.8,3.6};
+		PointSequence p2 (params,10,'m');
+	在函数中 可以使用 args.size() 获取传入的参数个数， 并 可以通过 begin() 和end() 获取迭代器来遍历传入的参数
+
+6. 类声明的头文件中， 只能初始化 static const int,  static const char 类型
+		但不能初始化 static const double 或 static const string 等类型
+		也不能 初始化 static 静态变量
+		在 C++11 中可以初始化 const 常量
+		
+	静态成员 可以 在非静态方法中访问
+	       当为公有属性时， 可以通过 对象引用	
+	const 非静态 成员 不能在静态方法中访问，
+			
+		当为公有属性时，可以通过对象引用，
+			但不能通过 类名:: 访问
+	静态方法 只能访问静态属性，
+		 当为公有属性时，可以通过对象引用、
+		 静态方法不能声明为 const 修饰 
+7.mutable 修饰一个成员变量，则该成员 将永远处于可变的状态，即使在一个const函数中 
+			 mutable int mNumAccess; 
+			int getK() const {mNumAccess++; return k;}	
+	如果mNumAccess 前面 有static 或者const修饰，则会编译出错。		
