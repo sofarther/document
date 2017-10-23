@@ -7,7 +7,13 @@ int add(int num1, int num2)
 	return num1 + num2;
 }
 也可以 在类方法中使用， 返回 纯的方法名
+__FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 2. 虚函数不能 声明为 const
+	当函数 声明为const 时， 则 在该函数中调用的其他方法 也必须 使用 const 修饰， 否则会报错：
+		 如：error: passing ‘const GameBoard’ as ‘this’ argument of ‘void GameBoard::checkRange(int, int)’ 
+			discards qualifiers [-fpermissive]
+	即 this 参数类型丢失
+		 
 3. 函数 返回 vector 指定的元素的引用时， 当向 vector 中添加元素时，导致 该元素的地址改变，
 	因此 当 对 返回的引用 变量修改， 并不会影响到 vector 中的该元素，
 	不要将对象直接放到 集合中， 而使用 指向对象的指针或 智能指针
@@ -137,7 +143,111 @@ int add(int num1, int num2)
 	因此在创建自定义异常类时，
 		需实现复制构造函数、赋值运算符、 当有内存分配时，析构函数需释放分配的内存
 		
-14. STL 可以使用容器保存的 元素对象的条件：
+14.右值引用用来绑定到右值,绑定到右值以后本来会被销毁的右值的生存期会延长至与绑定到它的右值引用的生存期,
+	可以理解为 赋予了那个临时对象一个合法地位:一个名字，
+	因此本来本来要被销毁的临时对象也会由于变量绑定而将生存期延长至和变量一样	
+15.
+	(1) new new[] 无法分配内存时，将 抛出 bad_alloc 异常， 因此 
+		可以通过捕捉该异常
+		也可以 使用 添加nothrow 表示 不抛出异常，而是通过 空指针判断
+	
+		try{
+    
+			
+				int bgsize =1000 * 1024*1024;
+				int * bigInt = new int[bgsize];
+				set_new_handler(oldHandler);
+			//使用 空指针判断
+			//int * bigInt = new(nothrow) int[bgsize];
+
+			//if(bigInt == nullptr)
+			 // {
+			//	cerr << "allocate memory fail\n";
+			//	return 2;
+			//  }
+			delete [] bigInt;
+
+  }
+  catch(const bad_alloc &e)
+    {
+      cerr << __FILE__ <<"("<< __LINE__ << "): Unable to allocate memory\n";
+      return 1;
+    }
+	还可以 设置 分配内存失败的回调方法：
+		set_new_handler()
+		返回 原  new_handler 
+		
+				void myNewHandler()
+				{
+				  cerr << __func__ << ": allocate memory fail\n";
+				
+				  // throw TerminateMe();
+				  throw bad_alloc();
+				}
+
+		new_handler oldHandler = set_new_handler(myNewHandler);
+	默认下 new handler 为空， 因此会抛出异常，若设置了  new handler, 则不会抛出异常而调用该回调函数，
+	new handler 回调函数限制：
+		a. 当该回调函数 会返回时， 则程序将会继续分配内存，从而造成递归调用，
+			因此 可以 在该回调函数中 抛出异常，
+				该异常可以由顶层函数，如 main() 函数处理，并终止程序，
+		b. 回调函数 当抛出除 bad_alloc 异常（或其子类）外， 则会调用 set_unexpected() 设置的意外异常处理函数
+				默认下会终止程序，
+		c. 在回调函数中 不要调用 abort()或 exit() 退出程序
+		d. 若 保证 在分配内存异常，程序仍可以执行，则可以在 回调函数中 将 new_handler 设置为 空，
+			否则会造成递归调用
+	
+	(2) 构造函数中异常：
+			当在构造函数中抛出异常时，则该对象没有创建，因此 不能调用析构函数释放分配的内存，
+			因此必须在构造函数中处理该异常，而不能将其 抛到上级函数中，
+			
+			Matrix::Matrix(unsigned int width, unsigned int height) throw(bad_alloc)
+			  : mWidth(width),mHeight(height),mMatrix(nullptr), mElem(width)
+			{
+			  unsigned int i=0;
+			  mMatrix = new Element* [width];
+			  try{
+			  for(i=0; i<width;i++)
+				{
+				  mMatrix[i]= new Element[height];
+				}
+			  }catch(...)
+				{
+				//清理分配的内存
+				  cout << "Exception caught in constructor, cleaning up...\n";
+
+				  for(unsigned int j=0; j< i; j++)
+					{
+					  delete [] mMatrix[j];
+					}
+				  delete [] mMatrix;
+				  mMatrix=nullptr;
+				  throw bad_alloc();
+				}
+
+			}
+		对于 在 构造函数的初始化列表 中的异常，则可以通过以下形式进行捕捉：
+			Matrix::Matrix(unsigned int width, unsigned int height) throw(bad_alloc,runtime_error)
+			try
+			  : mWidth(width),mHeight(height),mMatrix(nullptr), mElem(width)
+			{
+				...
+				...
+			}catch(const std::exception & e)
+			  {
+				cout << "function-try-block caught\n";
+			  }
+		其中 try 在初始化列表前， 而 catch 在 构造函数结束的} 后
+		限制：
+			a. catch 语句 可以捕捉 初始化和 构造函数中的 所有异常，
+			b. catch 语句 仍会抛出抛出异常，若没有在 catch 中进行显式抛出，
+				则会默认将捕捉到的异常再次抛出
+			c. 在 catch 捕捉到异常时， 则已经创建的成员对象都会 在 catch 前 调用 该对象析构函数，进行销毁
+				因此 不应该 在 catch 中访问 成员的变量（测试仍可以访问到，尽管已调用 析构函数）
+				
+		(3)析构函数 异常：
+			必须 在析构函数内部中处理析构函数引发的所有错误，而不应该 在析构函数中 向外抛出任何异常
+16. STL 可以使用容器保存的 元素对象的条件：
 		(1)	STL 容器对元素使用 值语义， 即 在保存元素时，保存元素的副本，
 			在请求元素时，返回 元素的副本， 而不是元素本身对象
 			因此 要保存到 STL容器的 元素对象 必须保证 可以有多个副本而不会异常
@@ -145,7 +255,7 @@ int add(int num1, int num2)
 			复制构造函数、 赋值运算、 析构函数、 默认构造函数、
 			operator==() 相等运算 operator<() 小于运算
 			C++11中， 还可以实现 移动构造函数  和 移动赋值运算			
-15. 在类模板中， 当使用的类型 需要传入 模板中的类型参数时，需显式指定 typename 关键字：
+17. 在类模板中， 当使用的类型 需要传入 模板中的类型参数时，需显式指定 typename 关键字：
 		template <typename T>
 		class MyClass
 		{
@@ -155,7 +265,7 @@ int add(int num1, int num2)
 			...
 		};
 		其中 模板参数T 用于访问 迭代器类型，故指定 typename	
-16. list：双向列表， 不支持随机访问元素，
+18. list：双向列表， 不支持随机访问元素，
 			可以通过front() 和back() 返回第一个和最后一个元素
 	(1)	迭代器 不能进行 加减运算， 
 		auto iterInsert =++(words.begin());
@@ -204,7 +314,7 @@ int add(int num1, int num2)
 		//在删除 secIter 位置的元素后，不能再使用 secIter 来指定位置
 		//而使用 返回的 secIter1 来指定位置
 		second.erase(secIter1,secIter2);
-17 forward_list 单向列表 C++11 中
+19 forward_list 单向列表 C++11 中
 		在插入操作时，指定的插入位置 只能是在该位置后进行插入，而不能为在该位置前插入，
 		因此 调用 insert_after() 或 splice_after()
 		
@@ -217,7 +327,7 @@ int add(int num1, int num2)
 			{
 				++iter;
 			}
-18. queue 队列：
+20. queue 队列：
 		push() 向尾部添加元素 pop()从头部弹出元素，
 			其中 pop()不会返回弹出的元素，需先通过front()获取该元素引用，
 			然后再调用pop()方法
