@@ -136,4 +136,97 @@ int add(int num1, int num2)
 			该对象内存已回收，因此会进行一次 按值赋值
 	因此在创建自定义异常类时，
 		需实现复制构造函数、赋值运算符、 当有内存分配时，析构函数需释放分配的内存
-	
+		
+14. STL 可以使用容器保存的 元素对象的条件：
+		(1)	STL 容器对元素使用 值语义， 即 在保存元素时，保存元素的副本，
+			在请求元素时，返回 元素的副本， 而不是元素本身对象
+			因此 要保存到 STL容器的 元素对象 必须保证 可以有多个副本而不会异常
+		(2)需要实现的方法：
+			复制构造函数、 赋值运算、 析构函数、 默认构造函数、
+			operator==() 相等运算 operator<() 小于运算
+			C++11中， 还可以实现 移动构造函数  和 移动赋值运算			
+15. 在类模板中， 当使用的类型 需要传入 模板中的类型参数时，需显式指定 typename 关键字：
+		template <typename T>
+		class MyClass
+		{
+			...
+			std::vector<T> mElems;
+			typename std::vector<T>::iterator mCurElem;
+			...
+		};
+		其中 模板参数T 用于访问 迭代器类型，故指定 typename	
+16. list：双向列表， 不支持随机访问元素，
+			可以通过front() 和back() 返回第一个和最后一个元素
+	(1)	迭代器 不能进行 加减运算， 
+		auto iterInsert =++(words.begin());
+		words.begin()+1 报错
+	(2) 插入 其他list 元素：
+		//将指定的list 元素全部插入， 参数的list 会被清空
+			void splice ( iterator position, list<T,Allocator>& x ); 
+		// 将指定的list 的一个元素插入， 参数中list 的该元素会被删除
+			void splice ( iterator position, list<T,Allocator>& x, iterator i );
+		//将指定的list 的 指定范围元素插入， 参数中list 的该范围的元素被删除
+			不包括 last 指向的元素
+		void splice ( iterator position, list<T,Allocator>& x, iterator first, iterator last );	
+	(3)merger() 合并list
+		void merge (list& x, Compare comp);
+		 有序合并指定的list, 并会清空参数list
+		其中 Compare 指定排序的比较函数：
+			bool myComp(double first,double second)
+			返回 true 表示 第一个参数 顺序排在第二个参数前
+		默认下会调用 元素 的operator<() 运算操作符进行比较	
+		list1.merge(list2,myComp);	
+		合并排序规则：
+			将 参数list 的元素与调用该方法的list 对象中的元素 进行比较，
+    		从而找到要合并的位置，
+    		但不会和 参数list 中的元素进行比较，而是仍按照该list 中的顺序合并到新的list 中
+    	例如： list1 为： 3.1 2.2 6.9
+    		list2 为 3.7 7.1 1.4 2.5 4.0
+    		在合并后， list1 为 
+    			3.1 2.2 3.7 6.9 7.1 1.4 2.5 4
+		因此，应在调用merge()前， 对两个list 对象调用 sort()进行排序
+			可以指定排序比较函数 list2.sort(myComp)
+	(4)	unique() 只能去掉连续重复的元素	
+		remove(元素值) 删除 与 指定的元素值 相等的所有元素
+		erase(position) 删除迭代器指定位置的元素
+		 并返回 该已删除的 位置，但与传入参数不同
+		 该返回值 可通过 * 获取删除的元素值， 可以通过++ 或-- 获取删除的元素的前后位置
+		 但不能使用 传入的 postion 对象来操作list元素
+		erase(first,last) 删除指定区间的元素
+		
+		auto secIter1 =second.erase(secIter);
+    	//返回的位置和传入的参数 不相同
+   		 cout <<*secIter1<< (&secIter1 ==&secIter) <<endl;
+     	//移动 删除的位置，否则会报错
+		secIter1++;
+		//secIter++;
+		auto secIter2 =--(second.end());
+		//在删除 secIter 位置的元素后，不能再使用 secIter 来指定位置
+		//而使用 返回的 secIter1 来指定位置
+		second.erase(secIter1,secIter2);
+17 forward_list 单向列表 C++11 中
+		在插入操作时，指定的插入位置 只能是在该位置后进行插入，而不能为在该位置前插入，
+		因此 调用 insert_after() 或 splice_after()
+		
+		而获取列表开头位置，调用 before_begin(), 即获取列表头前的位置
+		获取最后的元素， 由于不支持--不能使用 (-- for_list.end())
+		 只能通过开头进行遍历获取：
+		 	auto iter = lst1.before_begin();
+		 	auto iterTmp =iter;
+			while(++iterTmp!=lst1.end())
+			{
+				++iter;
+			}
+18. queue 队列：
+		push() 向尾部添加元素 pop()从头部弹出元素，
+			其中 pop()不会返回弹出的元素，需先通过front()获取该元素引用，
+			然后再调用pop()方法
+			back()获取尾部元素引用
+	priority_queue() 位于 queue 头文件，
+			通过 元素的 operator< 运算 判断元素的优先级，优先级高的先弹出
+			故 添加到priority_queue 元素的类 有该运算操作符
+			top() 返回优先级高的元素
+			pop()将优先级高的元素弹出
+	statck 栈：
+			top() 返回 栈最上的元素
+			pop() 弹出栈最上 的元素						
