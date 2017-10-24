@@ -265,6 +265,7 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 			...
 		};
 		其中 模板参数T 用于访问 迭代器类型，故指定 typename	
+		即 模板参数 只能同级平行使用，而不能深级使用
 18. list：双向列表， 不支持随机访问元素，
 			可以通过front() 和back() 返回第一个和最后一个元素
 	(1)	迭代器 不能进行 加减运算， 
@@ -340,3 +341,79 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 	statck 栈：
 			top() 返回 栈最上的元素
 			pop() 弹出栈最上 的元素						
+21. (1) pair 位于 utility 头文件，	
+		 将 两个可能为 不同类型的 值 组合起来，
+		 可以通过 first 和second 访问 组合的两个值
+		 重写了 operator==() 和 operator<(), 通过对 first 和second 值比较 返回结果
+		 pair<string,int> myPair("Hello",5);
+		 pair<string, int> otherPair;
+
+		  otherPair.first="world";
+		  otherPair.second=6;
+
+		  pair<string, int>anotherPair(otherPair);
+		说明：
+			a. pair 复制和赋值运算， 都是直接赋值，因此不能讲指针类型使用 pair 进行组合
+				可以使用 只能指针 如shared_ptr
+			b. 可以通过 make_pair(value1,value2) 将两个值 创建 pair 对象
+				make_pair() 为函数模板， 可以通过参数类型进行推导，不需要显式指定
+				但 返回的类型需显式指定，
+					pair<int,int> pair1 =make_pair(10,20);
+					或在 C++11 中 
+					auto pair2=make_pair(10,20);
+	(2)map 位于 map 头文件 
+			保存的键值对，根据键 对元素进行排序存储
+			  通过 operator<() 运算或自定义的比较函数进行 排序
+			 map<string,Data> dataMap;
+				其中 string 为键名类型， Data 为键值类型（自定义的Data）
+		a. 插入：
+			insert(pair) 参数为 pair 对象，
+				返回 pair<map<string,Data>::iterator,bool> 类型
+					即 该map 的迭代器 和是否正确插入状态 的组合的 pair 对象
+				insert()会先判断pair 对象的 first 指定的键名是否存在，
+					若已存在，则返回的 pair 对象 的 second 值为false, 
+						first 为指向 已存在的 键值对的迭代器对象
+					若不存在，则返回的 pair 对象 的 second 值为true, 
+						first 为指向 插入的 键值对的迭代器对象
+				其中 map<string,Data>::iterator  指向的是一个 pair	对象，
+						该pair 对象 first 为 键名， second 为键值，
+				pair<map<string,Data>::iterator,bool> ret =
+							dataMap.insert(make_pair("sofar",Data(22)));
+				//sofar, 22
+				  cout <<(ret.first)->first<<", "<< (ret.first)->second << endl;
+				  cout <<ret.second << endl; //1
+			
+			operator[] : 当指定的键名不存在时，则会调用键值类型的默认构造函数，创建一个对象
+					并插入到 map 中，
+					当为已存在的键名进行重新赋值时，则会覆盖原键值	
+					dataMap["zss"]=Data(45);
+  
+					cout << dataMap["zhss"] << endl;
+				由于operator[] 运算可以修改键值，因此 该操作符没有使用 const 修饰，	
+				因此 对于使用 const 修饰的 map 对象，不能使用[] 获取键值：
+					void test(const map<string,Data> &m ,string key)
+					{
+					  
+					  cout <<m[key] << endl;
+					}
+				编译时，会直接报错， 可以使用以下实现：
+				  map<string,Data>::const_iterator it =m.find(key);
+				  if(it !=m.end())
+					{
+					  cout << it->second << endl;
+					}
+
+		b.迭代器：
+			map 的 begin() 和 end() 方法返回的是 const_iterator 类型迭代器：
+			
+			 template <typename T, typename V>
+				void showMap(const map<T,V> & m)
+				{
+					 //需指定 typename 关键字
+				  typename map<T,V>::const_iterator it;
+				 
+				   for(it=m.begin();it!=m.end(); ++it)
+					{
+					  cout << it->first << ", " << it->second << endl;
+					}
+				}
