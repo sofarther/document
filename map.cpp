@@ -54,6 +54,12 @@ int main()
     Data d=dataMap["zgg"];
     cout << d <<endl; //0
     showMap(dataMap);
+	//find() 返回 iterator, 但iterator 可以转为const_iterator
+	//但不能将 const_iterator 转为 iterator
+	map<string,Data>::iterator ret2 = dataMap.find("zgg");
+	dataMap.erase(ret.first, ret2);
+	showMap(dataMap);
+
   return 0;
 }
 

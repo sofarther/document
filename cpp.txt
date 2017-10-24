@@ -397,7 +397,7 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 					  cout <<m[key] << endl;
 					}
 				编译时，会直接报错， 可以使用以下实现：
-				  map<string,Data>::const_iterator it =m.find(key);
+				  map<string,Data>::iterator it =m.find(key);
 				  if(it !=m.end())
 					{
 					  cout << it->second << endl;
@@ -405,7 +405,8 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 
 		b.迭代器：
 			map 的 begin() 和 end() 方法返回的是 const_iterator 类型迭代器：
-			
+				 const_iterator 可以 引用 iterator 类型，
+				 但iterator 不能引用 const_iterator 类型
 			 template <typename T, typename V>
 				void showMap(const map<T,V> & m)
 				{
@@ -417,3 +418,11 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 					  cout << it->first << ", " << it->second << endl;
 					}
 				}
+		c.删除元素：
+				 void erase (iterator position);
+
+				size_type erase (const key_type& k);
+	
+			     void erase (iterator first, iterator last);
+				可以指定键名，或 指向指定元素位置 的迭代器，或迭代器范围
+				需为 iterator 类型，而不能为 const_iterator 类型		
