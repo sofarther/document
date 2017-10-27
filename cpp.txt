@@ -1,155 +1,155 @@
 
 2017.10.14
-1.�ں����� ����Ĭ�ϵ� ��̬�ֲ����� __func__
+1.在函数中 会有默认的 静态局部变量 __func__
 int add(int num1, int num2)
 {
 	std::cout << "Enter function " << __func__ << std::endl;
 	return num1 + num2;
 }
-Ҳ���� ���෽����ʹ�ã� ���� ���ķ�����
-__FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
-2. �麯������ ����Ϊ const
-	������ ����Ϊconst ʱ�� �� �ڸú����е��õ��������� Ҳ���� ʹ�� const ���Σ� ����ᱨ����
-		 �磺error: passing ��const GameBoard�� as ��this�� argument of ��void GameBoard::checkRange(int, int)�� 
+也可以 在类方法中使用， 返回 纯的方法名
+__FILE__ 表示当前文件名， __LINE__ 表示 当前行数
+2. 虚函数不能 声明为 const
+	当函数 声明为const 时， 则 在该函数中调用的其他方法 也必须 使用 const 修饰， 否则会报错：
+		 如：error: passing ‘const GameBoard’ as ‘this’ argument of ‘void GameBoard::checkRange(int, int)’ 
 			discards qualifiers [-fpermissive]
-	�� this �������Ͷ�ʧ
+	即 this 参数类型丢失
 		 
-3. ���� ���� vector ָ����Ԫ�ص�����ʱ�� ���� vector ������Ԫ��ʱ������ ��Ԫ�صĵ�ַ�ı䣬
-	��� �� �� ���ص����� �����޸ģ� ������Ӱ�쵽 vector �еĸ�Ԫ�أ�
-	��Ҫ������ֱ�ӷŵ� �����У� ��ʹ�� ָ������ָ��� ����ָ��
-4.�����ڹ��캯����ʼ���б��� ���г�ʼ����
-		(1) const ���ݳ�Ա
-		(2)�����������ݳ�Ա
-		(3) û��Ĭ�Ϲ��캯�� �Ķ������ݳ�Ա
-		(4) û��Ĭ�Ϲ��캯�� �ĸ���
-	���캯���ĳ�ʼ���б�  ���� ���������������� ˳����г�ʼ�� ,������ ��ʼ���б�˳��	
-5. C++11 �� ���캯���� ʹ�� std::initializer_list<T> ��Ϊ������
-	std::initializer_list<T> λ�� initializer_list ͷ�ļ�
+3. 函数 返回 vector 指定的元素的引用时， 当向 vector 中添加元素时，导致 该元素的地址改变，
+	因此 当 对 返回的引用 变量修改， 并不会影响到 vector 中的该元素，
+	不要将对象直接放到 集合中， 而使用 指向对象的指针或 智能指针
+4.必须在构造函数初始化列表中 进行初始化：
+		(1) const 数据成员
+		(2)引用类型数据成员
+		(3) 没有默认构造函数 的对象数据成员
+		(4) 没有默认构造函数 的父类
+	构造函数的初始化列表  按照 在类中声明的属性 顺序进行初始化 ,而不是 初始化列表顺序	
+5. C++11 中 构造函数中 使用 std::initializer_list<T> 作为参数，
+	std::initializer_list<T> 位于 initializer_list 头文件
 		PointSequence(initializer_list<double> args)
 			
-	��ʱ������ʹ�� 
+	此时，不能使用 
 		PointSequence p2(2.5,6.8,3.5,5.6);	
-	��ʽ���г�ʼ��	
-	 �� std::initializer_list<T> Ϊ��һ������ ����������Ϊ����Ĭ��ֵ�Ĳ���ʱ��
-	 ����ʹ��
+	形式进行初始化	
+	 当 std::initializer_list<T> 为第一个参数 ，其他参数为带有默认值的参数时，
+	 可以使用
 		PointSequence p1={1.0,2.0,3.0,4.0,5.0,6.0};
 		
-	�������б���������û��Ĭ��ֵ�Ĳ���ʱ��
+	若参数列表中有其他没有默认值的参数时，
 			PointSequence(initializer_list<double> args,int k, char c)
-	��ʹ�ø���ʽ��
+	则使用该形式：
 		initializer_list<double> params={2.5,4.7,5.8,3.6};
 		PointSequence p2 (params,10,'m');
-	�ں����� ����ʹ�� args.size() ��ȡ����Ĳ��������� �� ����ͨ�� begin() ��end() ��ȡ����������������Ĳ���
+	在函数中 可以使用 args.size() 获取传入的参数个数， 并 可以通过 begin() 和end() 获取迭代器来遍历传入的参数
 
-	������ʹ��{} ͳһ��ʼ���� ���е�˳��Ϊ ���캯�� �����б�˳��
+	还可以使用{} 统一初始化， 其中的顺序为 构造函数 参数列表顺序：
 		Person ps{"hello",1,23,54.6};
-		�������Ϳ��Բ�ͬ
-6. ��������ͷ�ļ��У� ֻ�ܳ�ʼ�� static const int,  static const char ����
-		�����ܳ�ʼ�� static const double �� static const string ������
-		Ҳ���� ��ʼ�� static ��̬����
-		�� C++11 �п��Գ�ʼ�� const ����
+		参数类型可以不同
+6. 类声明的头文件中， 只能初始化 static const int,  static const char 类型
+		但不能初始化 static const double 或 static const string 等类型
+		也不能 初始化 static 静态变量
+		在 C++11 中可以初始化 const 常量
 		
-	��̬��Ա ���� �ڷǾ�̬�����з���
-	       ��Ϊ��������ʱ�� ����ͨ�� ��������	
-	const �Ǿ�̬ ��Ա �����ھ�̬�����з��ʣ�
+	静态成员 可以 在非静态方法中访问
+	       当为公有属性时， 可以通过 对象引用	
+	const 非静态 成员 不能在静态方法中访问，
 			
-		��Ϊ��������ʱ������ͨ���������ã�
-			������ͨ�� ����:: ����
-	��̬���� ֻ�ܷ��ʾ�̬���ԣ�
-		 ��Ϊ��������ʱ������ͨ���������á�
-		 ��̬������������Ϊ const ���Σ� Ҳ������ virtual �鷽��
-		��̬���� ���ܱ��������أ����������У�������ͬ�ľ�̬��������
-			���������������� �����޶��� ������
-			�� ʹ�ö��� �����ָ�������þ�̬����ʱ�������� �ö�������ָ�����������ͣ�
-			���жϵ��� ����������еĸþ�̬�����������Ǹö���ʵ�ʵĶ�������
-		���������У�û��������ͬ�ľ�̬�������� ��������ڵ��ø÷���ʱ���򽫵��ø���ľ�̬����	
-			Ҳ���� ʹ�� ����::��̬���� ������ ���ྲ̬����
-7.mutable ����һ����Ա��������ó�Ա ����Զ���ڿɱ��״̬����ʹ��һ��const������ 
+		当为公有属性时，可以通过对象引用，
+			但不能通过 类名:: 访问
+	静态方法 只能访问静态属性，
+		 当为公有属性时，可以通过对象引用、
+		 静态方法不能声明为 const 修饰， 也不能是 virtual 虚方法
+		静态方法 不能被子类重载，若在子类中，声明相同的静态方法，则
+			存在两个方法，以 类名限定符 来区分
+			当 使用对象 或对象指针来调用静态方法时，则会根据 该对象或对象指针声明的类型，
+			来判断调用 父类或子类中的该静态方法，而不是该对象实际的对象类型
+		若在子类中，没有声明相同的静态方法，则 子类对象在调用该方法时，则将调用父类的静态方法	
+			也可以 使用 子类::静态方法 来访问 父类静态方法
+7.mutable 修饰一个成员变量，则该成员 将永远处于可变的状态，即使在一个const函数中 
 			 mutable int mNumAccess; 
 			int getK() const {mNumAccess++; return k;}	
-	���mNumAccess ǰ�� ��static ����const���Σ������������	
-8. �������� ����� ĳ�����������ڸ����и÷������ж��������ʽʱ��
-		�� ����ֻ��̳� �����ص���ʽ��������ʽ������أ�
-		������ ͨ��������� ���� �÷�����������ʽ
+	如果mNumAccess 前面 有static 或者const修饰，则会编译出错。	
+8. 子类重载 父类的 某个方法，当在父类中该方法名有多个重载形式时，
+		则 子类只会继承 该重载的形式，其他形式则会隐藏，
+		即不能 通过子类对象 调用 该方法的其他形式
 		
-	 ������ ʹ��ָ������Ķ���� ����ָ�� ���� �����еĸ÷���������ʽ
+	 但可以 使用指向子类的对象的 父类指针 调用 父类中的该方法其他形式
     
-	���� �������� public ͨ�� using ����::������; ��ʽ ��������÷�����������ʽ	
-		���� ������ ��û��()
-	��C++11 �п��� �� ����Ĺ��캯�� ʹ�ø���ʽ���������������Ե��ø���Ĺ��캯���������������
-		���� ���� �����������������ԣ�������� C++11 ��������ʱ�ṩĬ��ֵ
-	�� ���������������븸�๹�캯�� ������ͬ�Ĺ��캯��ʱ���������ʹ�� ���������Ĺ��캯��	
-9. �޸� �����ķ���Ȩ�ޣ�
-		��������޸� ����ķ�����Ȩ�ޣ�
-		(1)�� ����ķ���Ȩ�� �ϸ�
-			 ʹ�� ������� ���ܵ��ø÷�������������� ���Ե���
-			�� �������û�ָ�� ���� ���������Ҳ���Ե��ø÷��������������෽����virtual ������
-			�� ����� ���Ƶķ��� �Կ������ⲿ����
-		(2)�� ����ķ���Ȩ�� �Ŵ�
-			������� �� �������� ָ�� ����������� �����ܷ��ʸ÷�����
-			������� ���Է��ʸ÷���
-10. �������� ���� �д���Ĭ�ϲ��� �ķ���	
-	  ��Ĭ�ϲ������ᱻ�̳У� 
-	  �� ���������� �÷���ʱ ����ָ�����²���ʱ����
-		�� ʹ�� �������û�ָ�� ����������� ��������������ø÷���ʱ�������������еĸ÷�����virtual ��������
-		�� Ĭ�ϲ��� ��Ϊ ���������е�Ĭ��ֵ
-	�� ���������� �÷���ʱ��û��ָ��Ĭ�ϲ��������൱�� �����˸÷����� һ������ʽ�� ����Ĵ�Ĭ�ϲ�������ʽ�ᱻ���أ�
-		��� ��������� ������������� �÷���
-11. ��ͬԴ�ļ� �е� �Ǿֲ��������ⲿ�����ԣ��ĳ�ʼ��˳�� ��ȷ��
-		�� �����ռ��еı��� �ڶ��Դ�ļ���ʹ�ã�
-			�� ͷ�ļ��ж���
+	可以 在子类中 public 通过 using 父类::方法名; 形式 声明父类该方法的其他形式	
+		其中 方法名 后没有()
+	在C++11 中可以 对 父类的构造函数 使用该形式进行声明，即可以调用父类的构造函数来创建子类对象，
+		其中 对于 在子类中声明的属性，则可以在 C++11 中在声明时提供默认值
+	当 在子类中声明了与父类构造函数 参数相同的构造函数时，则会优先使用 子类声明的构造函数	
+9. 修改 方法的访问权限：
+		子类可以修改 父类的方法的权限：
+		(1)将 父类的方法权限 严格：
+			 使用 子类对象 不能调用该方法，但父类对象 可以调用
+			当 父类引用或指针 引用 子类对象，则也可以调用该方法，并调用子类方法（virtual 声明）
+			即 子类的 限制的方法 仍可以在外部方法
+		(2)将 父类的方法权限 放大：
+			父类对象 和 父类引用 指针 引用子类对象 都不能访问该方法，
+			子类对象 可以访问该方法
+10. 子类重载 父类 中带有默认参数 的方法	
+	  该默认参数不会被继承， 
+	  当 子类在重载 该方法时 重新指定了新参数时，则
+		当 使用 父类引用或指针 引用子类对象 不传入参数来调用该方法时，则会调用子类中的该方法（virtual 声明），
+		但 默认参数 仍为 父类声明中的默认值
+	当 子类在重载 该方法时，没有指定默认参数，则相当于 重载了该方法的 一个新形式， 则父类的待默认参数的形式会被隐藏，
+		因此 子类对象不能 不传入参数调用 该方法
+11. 不同源文件 中的 非局部变量（外部连接性）的初始化顺序 不确定
+		在 命名空间中的变量 在多个源文件中使用：
+			在 头文件中定义
 			namespace NS{
 				extern int m;
 			};
 				
-			��Դ�ļ��г�ʼ����first.cpp
+			在源文件中初始化：first.cpp
 				namespace NS{
 					extern int m;
 					m=20;
 				};
 				
-			����ֱ�� ʹ�� extern int m=20;
-			�� ���ļ���ʹ�ã�
+			不能直接 使用 extern int m=20;
+			在 主文件中使用：
 				using namespace NS;
 				extern int NS::m;
-			������ main() �����⣬�� ����ʹ�� �����ռ��޶�������ʹʹ���� using namespace NS; 
+			必须在 main() 函数外，且 必须使用 命名空间限定符，即使使用了 using namespace NS; 
 
-12. typedef ���庯��ָ�� ����
+12. typedef 定义函数指针 类型
 		 typedef int (*myf)(bool b, int i, const char *p);
-	���� myf Ϊ ָ�� ����Ϊ (bool b, int i, const char *p)�� ����ֵΪ int �ĺ���ָ������
-		�������
+	其中 myf 为 指向 参数为 (bool b, int i, const char *p)， 返回值为 int 的函数指针类型
+		定义变量
 		myf f;
-	C++11 �� ʹ�� using �� ������
+	C++11 中 使用 using 来 声明：
 		using myf = int (*)(bool b, int i, const char *p)
-13. �� �����ڶ��������ʱ�� ������ �쳣�б�����
-			���ڸú����� �׳��� û���� �쳣�б� �е� �쳣ʱ��
-		�� ����ֹ���쳣�뿪 �ú������׳������øú������ϼ������У�
-		��� ���ú��� �޷���׽���������쳣
-		���ǻ�ֱ�ӵ��� unexpected() �����������쳣
-		����ͨ�� set_unexpected() ���� ���������쳣������
-				�� �ڸ� ���������쳣 �����У� �ٵ��� throw �׳��쳣��
-				�� �����µ��쳣 ��û���� �������쳣�б��У�
-					�� �� ���������쳣�б����� bad_exception ,
-						�� ���� �ڸ� ���������쳣 ������ �׳����� �κ��쳣��
-							�����׳�  bad_exception �� ���ú���
-						���� ��ֹ����
-	������д���෽���� ���Խ� �����еķ��� ������ �쳣�б� �е��쳣����ɾ��
-			Ҳ���� ʹ�� noexcept �� ��� �쳣�б�
-			Ҳ���� �����µ��쳣�� �����쳣����Ϊ �����е��쳣�б�������
+13. 当 函数在定义和声明时， 声明的 异常列表，则
+			若在该函数中 抛出的 没有在 异常列表 中的 异常时，
+		则 会阻止该异常离开 该函数而抛出到调用该函数的上级函数中，
+		因此 调用函数 无法捕捉到该意外异常
+		而是会直接调用 unexpected() 处理该意外异常
+		可以通过 set_unexpected() 设置 处理意外异常函数，
+				若 在该 处理意外异常 函数中， 再调用 throw 抛出异常，
+				则 若该新的异常 仍没有在 声明的异常列表中，
+					则 若 该声明的异常列表中有 bad_exception ,
+						则 无论 在该 处理意外异常 函数中 抛出的是 任何异常，
+							都将抛出  bad_exception 到 调用函数
+						否则 终止程序
+	子类重写父类方法， 可以将 父类中的方法 声明的 异常列表 中的异常进行删除
+			也可以 使用 noexcept 或 清空 异常列表
+			也可以 添加新的异常， 但该异常必须为 父类中的异常列表的子类
 	
-	��Ϊ�쳣�׳��Ķ��� ���ٻᰴֵ����һ�Σ�
-		��Ϊ ���׳�ʱλ�� �������쳣���� ���ڵ�ջ λ�ýϸߣ����ܻ����׳������׽֮ǰ��
-			�ö����ڴ��ѻ��գ���˻����һ�� ��ֵ��ֵ
-	����ڴ����Զ����쳣��ʱ��
-		��ʵ�ָ��ƹ��캯������ֵ������� �����ڴ����ʱ�������������ͷŷ�����ڴ�
+	作为异常抛出的对象 至少会按值复制一次，
+		因为 在抛出时位置 创建的异常对象 所在的栈 位置较高，可能会在抛出后而捕捉之前，
+			该对象内存已回收，因此会进行一次 按值赋值
+	因此在创建自定义异常类时，
+		需实现复制构造函数、赋值运算符、 当有内存分配时，析构函数需释放分配的内存
 		
-14.��ֵ���������󶨵���ֵ,�󶨵���ֵ�Ժ����ᱻ���ٵ���ֵ�������ڻ��ӳ�����󶨵�������ֵ���õ�������,
-	��������Ϊ �������Ǹ���ʱ����һ���Ϸ���λ:һ�����֣�
-	��˱�������Ҫ�����ٵ���ʱ����Ҳ�����ڱ����󶨶����������ӳ����ͱ���һ��	
+14.右值引用用来绑定到右值,绑定到右值以后本来会被销毁的右值的生存期会延长至与绑定到它的右值引用的生存期,
+	可以理解为 赋予了那个临时对象一个合法地位:一个名字，
+	因此本来本来要被销毁的临时对象也会由于变量绑定而将生存期延长至和变量一样	
 15.
-	(1) new new[] �޷������ڴ�ʱ���� �׳� bad_alloc �쳣�� ��� 
-		����ͨ����׽���쳣
-		Ҳ���� ʹ�� ����nothrow ��ʾ ���׳��쳣������ͨ�� ��ָ���ж�
+	(1) new new[] 无法分配内存时，将 抛出 bad_alloc 异常， 因此 
+		可以通过捕捉该异常
+		也可以 使用 添加nothrow 表示 不抛出异常，而是通过 空指针判断
 	
 		try{
     
@@ -157,7 +157,7 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 				int bgsize =1000 * 1024*1024;
 				int * bigInt = new int[bgsize];
 				set_new_handler(oldHandler);
-			//ʹ�� ��ָ���ж�
+			//使用 空指针判断
 			//int * bigInt = new(nothrow) int[bgsize];
 
 			//if(bigInt == nullptr)
@@ -173,9 +173,9 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
       cerr << __FILE__ <<"("<< __LINE__ << "): Unable to allocate memory\n";
       return 1;
     }
-	������ ���� �����ڴ�ʧ�ܵĻص�������
+	还可以 设置 分配内存失败的回调方法：
 		set_new_handler()
-		���� ԭ  new_handler 
+		返回 原  new_handler 
 		
 				void myNewHandler()
 				{
@@ -186,20 +186,20 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 				}
 
 		new_handler oldHandler = set_new_handler(myNewHandler);
-	Ĭ���� new handler Ϊ�գ� ��˻��׳��쳣����������  new handler, �򲻻��׳��쳣�����øûص�������
-	new handler �ص��������ƣ�
-		a. ���ûص����� �᷵��ʱ�� ����򽫻���������ڴ棬�Ӷ���ɵݹ���ã�
-			��� ���� �ڸûص������� �׳��쳣��
-				���쳣�����ɶ��㺯������ main() ��������������ֹ����
-		b. �ص����� ���׳��� bad_alloc �쳣���������ࣩ�⣬ ������ set_unexpected() ���õ������쳣��������
-				Ĭ���»���ֹ����
-		c. �ڻص������� ��Ҫ���� abort()�� exit() �˳�����
-		d. �� ��֤ �ڷ����ڴ��쳣�������Կ���ִ�У�������� �ص������� �� new_handler ����Ϊ �գ�
-			�������ɵݹ����
+	默认下 new handler 为空， 因此会抛出异常，若设置了  new handler, 则不会抛出异常而调用该回调函数，
+	new handler 回调函数限制：
+		a. 当该回调函数 会返回时， 则程序将会继续分配内存，从而造成递归调用，
+			因此 可以 在该回调函数中 抛出异常，
+				该异常可以由顶层函数，如 main() 函数处理，并终止程序，
+		b. 回调函数 当抛出除 bad_alloc 异常（或其子类）外， 则会调用 set_unexpected() 设置的意外异常处理函数
+				默认下会终止程序，
+		c. 在回调函数中 不要调用 abort()或 exit() 退出程序
+		d. 若 保证 在分配内存异常，程序仍可以执行，则可以在 回调函数中 将 new_handler 设置为 空，
+			否则会造成递归调用
 	
-	(2) ���캯�����쳣��
-			���ڹ��캯�����׳��쳣ʱ����ö���û�д�������� ���ܵ������������ͷŷ�����ڴ棬
-			��˱����ڹ��캯���д������쳣�������ܽ��� �׵��ϼ������У�
+	(2) 构造函数中异常：
+			当在构造函数中抛出异常时，则该对象没有创建，因此 不能调用析构函数释放分配的内存，
+			因此必须在构造函数中处理该异常，而不能将其 抛到上级函数中，
 			
 			Matrix::Matrix(unsigned int width, unsigned int height) throw(bad_alloc)
 			  : mWidth(width),mHeight(height),mMatrix(nullptr), mElem(width)
@@ -213,7 +213,7 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 				}
 			  }catch(...)
 				{
-				//����������ڴ�
+				//清理分配的内存
 				  cout << "Exception caught in constructor, cleaning up...\n";
 
 				  for(unsigned int j=0; j< i; j++)
@@ -226,7 +226,7 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 				}
 
 			}
-		���� �� ���캯���ĳ�ʼ���б� �е��쳣�������ͨ��������ʽ���в�׽��
+		对于 在 构造函数的初始化列表 中的异常，则可以通过以下形式进行捕捉：
 			Matrix::Matrix(unsigned int width, unsigned int height) throw(bad_alloc,runtime_error)
 			try
 			  : mWidth(width),mHeight(height),mMatrix(nullptr), mElem(width)
@@ -237,25 +237,25 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 			  {
 				cout << "function-try-block caught\n";
 			  }
-		���� try �ڳ�ʼ���б�ǰ�� �� catch �� ���캯��������} ��
-		���ƣ�
-			a. catch ��� ���Բ�׽ ��ʼ���� ���캯���е� �����쳣��
-			b. catch ��� �Ի��׳��׳��쳣����û���� catch �н�����ʽ�׳���
-				���Ĭ�Ͻ���׽�����쳣�ٴ��׳�
-			c. �� catch ��׽���쳣ʱ�� ���Ѿ������ĳ�Ա���󶼻� �� catch ǰ ���� �ö���������������������
-				��� ��Ӧ�� �� catch �з��� ��Ա�ı����������Կ��Է��ʵ��������ѵ��� ����������
+		其中 try 在初始化列表前， 而 catch 在 构造函数结束的} 后
+		限制：
+			a. catch 语句 可以捕捉 初始化和 构造函数中的 所有异常，
+			b. catch 语句 仍会抛出抛出异常，若没有在 catch 中进行显式抛出，
+				则会默认将捕捉到的异常再次抛出
+			c. 在 catch 捕捉到异常时， 则已经创建的成员对象都会 在 catch 前 调用 该对象析构函数，进行销毁
+				因此 不应该 在 catch 中访问 成员的变量（测试仍可以访问到，尽管已调用 析构函数）
 				
-		(3)�������� �쳣��
-			���� �����������ڲ��д��������������������д��󣬶���Ӧ�� ������������ �����׳��κ��쳣
-16. STL ����ʹ����������� Ԫ�ض����������
-		(1)	STL ������Ԫ��ʹ�� ֵ���壬 �� �ڱ���Ԫ��ʱ������Ԫ�صĸ�����
-			������Ԫ��ʱ������ Ԫ�صĸ����� ������Ԫ�ر�������
-			��� Ҫ���浽 STL������ Ԫ�ض��� ���뱣֤ �����ж�������������쳣
-		(2)��Ҫʵ�ֵķ�����
-			���ƹ��캯���� ��ֵ���㡢 ���������� Ĭ�Ϲ��캯����
-			operator==() ������� operator<() С������
-			C++11�У� ������ʵ�� �ƶ����캯��  �� �ƶ���ֵ����			
-17. ����ģ���У� ��ʹ�õ����� ��Ҫ���� ģ���е����Ͳ���ʱ������ʽָ�� typename �ؼ��֣�
+		(3)析构函数 异常：
+			必须 在析构函数内部中处理析构函数引发的所有错误，而不应该 在析构函数中 向外抛出任何异常
+16. STL 可以使用容器保存的 元素对象的条件：
+		(1)	STL 容器对元素使用 值语义， 即 在保存元素时，保存元素的副本，
+			在请求元素时，返回 元素的副本， 而不是元素本身对象
+			因此 要保存到 STL容器的 元素对象 必须保证 可以有多个副本而不会异常
+		(2)需要实现的方法：
+			复制构造函数、 赋值运算、 析构函数、 默认构造函数、
+			operator==() 相等运算 operator<() 小于运算
+			C++11中， 还可以实现 移动构造函数  和 移动赋值运算			
+17. 在类模板中， 当使用的类型 需要传入 模板中的类型参数时，需显式指定 typename 关键字：
 		template <typename T>
 		class MyClass
 		{
@@ -264,87 +264,87 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 			typename std::vector<T>::iterator mCurElem;
 			...
 		};
-		���� ģ�����T ���ڷ��� ���������ͣ���ָ�� typename	
-		�� ģ����� ֻ��ͬ��ƽ��ʹ�ã��������ʹ��
-18. list��˫���б��� ��֧���������Ԫ�أ�
-			����ͨ��front() ��back() ���ص�һ�������һ��Ԫ��
-	(1)	������ ���ܽ��� �Ӽ����㣬 
+		其中 模板参数T 用于访问 迭代器类型，故指定 typename	
+		即 模板参数 只能同级平行使用，而不能深级使用
+18. list：双向列表， 不支持随机访问元素，
+			可以通过front() 和back() 返回第一个和最后一个元素
+	(1)	迭代器 不能进行 加减运算， 
 		auto iterInsert =++(words.begin());
-		words.begin()+1 ����
-	(2) ���� ����list Ԫ�أ�
-		//��ָ����list Ԫ��ȫ�����룬 ������list �ᱻ���
+		words.begin()+1 报错
+	(2) 插入 其他list 元素：
+		//将指定的list 元素全部插入， 参数的list 会被清空
 			void splice ( iterator position, list<T,Allocator>& x ); 
-		// ��ָ����list ��һ��Ԫ�ز��룬 ������list �ĸ�Ԫ�ػᱻɾ��
+		// 将指定的list 的一个元素插入， 参数中list 的该元素会被删除
 			void splice ( iterator position, list<T,Allocator>& x, iterator i );
-		//��ָ����list �� ָ����ΧԪ�ز��룬 ������list �ĸ÷�Χ��Ԫ�ر�ɾ��
-			������ last ָ���Ԫ��
+		//将指定的list 的 指定范围元素插入， 参数中list 的该范围的元素被删除
+			不包括 last 指向的元素
 		void splice ( iterator position, list<T,Allocator>& x, iterator first, iterator last );	
-	(3)merger() �ϲ�list
+	(3)merger() 合并list
 		void merge (list& x, Compare comp);
-		 ����ϲ�ָ����list, ������ղ���list
-		���� Compare ָ������ıȽϺ�����
+		 有序合并指定的list, 并会清空参数list
+		其中 Compare 指定排序的比较函数：
 			bool myComp(double first,double second)
-			���� true ��ʾ ��һ������ ˳�����ڵڶ�������ǰ
-		Ĭ���»���� Ԫ�� ��operator<() ������������бȽ�	
+			返回 true 表示 第一个参数 顺序排在第二个参数前
+		默认下会调用 元素 的operator<() 运算操作符进行比较	
 		list1.merge(list2,myComp);	
-		�ϲ��������
-			�� ����list ��Ԫ������ø÷�����list �����е�Ԫ�� ���бȽϣ�
-    		�Ӷ��ҵ�Ҫ�ϲ���λ�ã�
-    		������� ����list �е�Ԫ�ؽ��бȽϣ������԰��ո�list �е�˳��ϲ����µ�list ��
-    	���磺 list1 Ϊ�� 3.1 2.2 6.9
-    		list2 Ϊ 3.7 7.1 1.4 2.5 4.0
-    		�ںϲ��� list1 Ϊ 
+		合并排序规则：
+			将 参数list 的元素与调用该方法的list 对象中的元素 进行比较，
+    		从而找到要合并的位置，
+    		但不会和 参数list 中的元素进行比较，而是仍按照该list 中的顺序合并到新的list 中
+    	例如： list1 为： 3.1 2.2 6.9
+    		list2 为 3.7 7.1 1.4 2.5 4.0
+    		在合并后， list1 为 
     			3.1 2.2 3.7 6.9 7.1 1.4 2.5 4
-		��ˣ�Ӧ�ڵ���merge()ǰ�� ������list ������� sort()��������
-			����ָ������ȽϺ��� list2.sort(myComp)
-	(4)	unique() ֻ��ȥ�������ظ���Ԫ��	
-		remove(Ԫ��ֵ) ɾ�� �� ָ����Ԫ��ֵ ��ȵ�����Ԫ��
-		erase(position) ɾ��������ָ��λ�õ�Ԫ��
-		 ������ ����ɾ���� λ�ã����봫�������ͬ
-		 �÷���ֵ ��ͨ�� * ��ȡɾ����Ԫ��ֵ�� ����ͨ��++ ��-- ��ȡɾ����Ԫ�ص�ǰ��λ��
-		 ������ʹ�� ����� postion ����������listԪ��
-		erase(first,last) ɾ��ָ�������Ԫ��
+		因此，应在调用merge()前， 对两个list 对象调用 sort()进行排序
+			可以指定排序比较函数 list2.sort(myComp)
+	(4)	unique() 只能去掉连续重复的元素	
+		remove(元素值) 删除 与 指定的元素值 相等的所有元素
+		erase(position) 删除迭代器指定位置的元素
+		 并返回 该已删除的 位置，但与传入参数不同
+		 该返回值 可通过 * 获取删除的元素值， 可以通过++ 或-- 获取删除的元素的前后位置
+		 但不能使用 传入的 postion 对象来操作list元素
+		erase(first,last) 删除指定区间的元素
 		
 		auto secIter1 =second.erase(secIter);
-    	//���ص�λ�úʹ���Ĳ��� ����ͬ
+    	//返回的位置和传入的参数 不相同
    		 cout <<*secIter1<< (&secIter1 ==&secIter) <<endl;
-     	//�ƶ� ɾ����λ�ã�����ᱨ��
+     	//移动 删除的位置，否则会报错
 		secIter1++;
 		//secIter++;
 		auto secIter2 =--(second.end());
-		//��ɾ�� secIter λ�õ�Ԫ�غ󣬲�����ʹ�� secIter ��ָ��λ��
-		//��ʹ�� ���ص� secIter1 ��ָ��λ��
+		//在删除 secIter 位置的元素后，不能再使用 secIter 来指定位置
+		//而使用 返回的 secIter1 来指定位置
 		second.erase(secIter1,secIter2);
-19 forward_list �����б� C++11 ��
-		�ڲ������ʱ��ָ���Ĳ���λ�� ֻ�����ڸ�λ�ú���в��룬������Ϊ�ڸ�λ��ǰ���룬
-		��� ���� insert_after() �� splice_after()
+19 forward_list 单向列表 C++11 中
+		在插入操作时，指定的插入位置 只能是在该位置后进行插入，而不能为在该位置前插入，
+		因此 调用 insert_after() 或 splice_after()
 		
-		����ȡ�б���ͷλ�ã����� before_begin(), ����ȡ�б�ͷǰ��λ��
-		��ȡ����Ԫ�أ� ���ڲ�֧��--����ʹ�� (-- for_list.end())
-		 ֻ��ͨ����ͷ���б�����ȡ��
+		而获取列表开头位置，调用 before_begin(), 即获取列表头前的位置
+		获取最后的元素， 由于不支持--不能使用 (-- for_list.end())
+		 只能通过开头进行遍历获取：
 		 	auto iter = lst1.before_begin();
 		 	auto iterTmp =iter;
 			while(++iterTmp!=lst1.end())
 			{
 				++iter;
 			}
-20. queue ���У�
-		push() ��β������Ԫ�� pop()��ͷ������Ԫ�أ�
-			���� pop()���᷵�ص�����Ԫ�أ�����ͨ��front()��ȡ��Ԫ�����ã�
-			Ȼ���ٵ���pop()����
-			back()��ȡβ��Ԫ������
-	priority_queue() λ�� queue ͷ�ļ���
-			ͨ�� Ԫ�ص� operator< ���� �ж�Ԫ�ص����ȼ������ȼ��ߵ��ȵ���
-			�� ���ӵ�priority_queue Ԫ�ص��� �и����������
-			top() �������ȼ��ߵ�Ԫ��
-			pop()�����ȼ��ߵ�Ԫ�ص���
-	statck ջ��
-			top() ���� ջ���ϵ�Ԫ��
-			pop() ����ջ���� ��Ԫ��						
-21. (1) pair λ�� utility ͷ�ļ���	
-		 �� ��������Ϊ ��ͬ���͵� ֵ ���������
-		 ����ͨ�� first ��second ���� ��ϵ�����ֵ
-		 ��д�� operator==() �� operator<(), ͨ���� first ��second ֵ�Ƚ� ���ؽ��
+20. queue 队列：
+		push() 向尾部添加元素 pop()从头部弹出元素，
+			其中 pop()不会返回弹出的元素，需先通过front()获取该元素引用，
+			然后再调用pop()方法
+			back()获取尾部元素引用
+	priority_queue() 位于 queue 头文件，
+			通过 元素的 operator< 运算 判断元素的优先级，优先级高的先弹出
+			故 添加到priority_queue 元素的类 有该运算操作符
+			top() 返回优先级高的元素
+			pop()将优先级高的元素弹出
+	statck 栈：
+			top() 返回 栈最上的元素
+			pop() 弹出栈最上 的元素						
+21. (1) pair 位于 utility 头文件，	
+		 将 两个可能为 不同类型的 值 组合起来，
+		 可以通过 first 和second 访问 组合的两个值
+		 重写了 operator==() 和 operator<(), 通过对 first 和second 值比较 返回结果
 		 pair<string,int> myPair("Hello",5);
 		 pair<string, int> otherPair;
 
@@ -352,65 +352,66 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 		  otherPair.second=6;
 
 		  pair<string, int>anotherPair(otherPair);
-		˵����
-			a. pair ���ƺ͸�ֵ���㣬 ����ֱ�Ӹ�ֵ����˲��ܽ�ָ������ʹ�� pair �������
-				����ʹ�� ֻ��ָ�� ��shared_ptr
-			b. ����ͨ�� make_pair(value1,value2) ������ֵ ���� pair ����
-				make_pair() Ϊ����ģ�壬 ����ͨ���������ͽ����Ƶ�������Ҫ��ʽָ��
-				�� ���ص���������ʽָ����
+		说明：
+			a. pair 复制和赋值运算， 都是直接赋值，因此不能讲指针类型使用 pair 进行组合
+				可以使用 只能指针 如shared_ptr
+			b. 可以通过 make_pair(value1,value2) 将两个值 创建 pair 对象
+				make_pair() 为函数模板， 可以通过参数类型进行推导，不需要显式指定
+				但 返回的类型需显式指定，
 					pair<int,int> pair1 =make_pair(10,20);
-					���� C++11 �� 
+					或在 C++11 中 
 					auto pair2=make_pair(10,20);
-	(2)map λ�� map ͷ�ļ� 
-			����ļ�ֵ�ԣ����ݼ� ��Ԫ�ؽ�������洢
-			  ͨ�� operator<() ������Զ���ıȽϺ������� ����
+	(2)map 位于 map 头文件 
+			保存的键值对，根据键 对元素进行排序存储
+			  通过 operator<() 运算或自定义的比较函数进行 排序
 			 map<string,Data> dataMap;
-				���� string Ϊ�������ͣ� Data Ϊ��ֵ���ͣ��Զ����Data��
-		a. ���룺
-			insert(pair) ����Ϊ pair ����
-				���� pair<map<string,Data>::iterator,bool> ����
-					�� ��map �ĵ����� ���Ƿ���ȷ����״̬ ����ϵ� pair ����
-				insert()�����ж�pair ����� first ָ���ļ����Ƿ���ڣ�
-					���Ѵ��ڣ��򷵻ص� pair ���� �� second ֵΪfalse, 
-						first Ϊָ�� �Ѵ��ڵ� ��ֵ�Եĵ���������
-					�������ڣ��򷵻ص� pair ���� �� second ֵΪtrue, 
-						first Ϊָ�� ����� ��ֵ�Եĵ���������
-				���� map<string,Data>::iterator  ָ�����һ�� pair	����
-						��pair ���� first Ϊ ������ second Ϊ��ֵ��
+				其中 string 为键名类型， Data 为键值类型（自定义的Data）
+		a. 插入：
+			insert(pair) 参数为 pair 对象，
+				返回 pair<map<string,Data>::iterator,bool> 类型
+					即 该map 的迭代器 和是否正确插入状态 的组合的 pair 对象
+				insert()会先判断pair 对象的 first 指定的键名是否存在，
+					若已存在，则返回的 pair 对象 的 second 值为false, 
+						first 为指向 已存在的 键值对的迭代器对象
+					若不存在，则返回的 pair 对象 的 second 值为true, 
+						first 为指向 插入的 键值对的迭代器对象
+				其中 map<string,Data>::iterator  指向的是一个 pair	对象，
+						该pair 对象 first 为 键名， second 为键值，
 				pair<map<string,Data>::iterator,bool> ret =
 							dataMap.insert(make_pair("sofar",Data(22)));
 				//sofar, 22
 				  cout <<(ret.first)->first<<", "<< (ret.first)->second << endl;
 				  cout <<ret.second << endl; //1
 			
-			operator[] : ��ָ���ļ���������ʱ�������ü�ֵ���͵�Ĭ�Ϲ��캯��������һ������
-					�����뵽 map �У�
-					��Ϊ�Ѵ��ڵļ����������¸�ֵʱ����Ḳ��ԭ��ֵ	
+			operator[] : 当指定的键名不存在时，则会调用键值类型的默认构造函数，创建一个对象
+					并插入到 map 中，
+					当为已存在的键名进行重新赋值时，则会覆盖原键值	
 					dataMap["zss"]=Data(45);
   
 					cout << dataMap["zhss"] << endl;
-				����operator[] ��������޸ļ�ֵ����� �ò�����û��ʹ�� const ���Σ�	
-				��� ����ʹ�� const ���ε� map ���󣬲���ʹ��[] ��ȡ��ֵ��
+				由于operator[] 运算可以修改键值，因此 该操作符没有使用 const 修饰，	
+				因此 对于使用 const 修饰的 map 对象，不能使用[] 获取键值：
 					void test(const map<string,Data> &m ,string key)
 					{
 					  
 					  cout <<m[key] << endl;
 					}
-				����ʱ����ֱ�ӱ����� ����ʹ������ʵ�֣�
+				编译时，会直接报错， 可以使用以下实现：
 				  map<string,Data>::iterator it =m.find(key);
 				  if(it !=m.end())
 					{
 					  cout << it->second << endl;
 					}
 
-		b.��������
-			map �� begin() �� end() �������ص��� const_iterator ���͵�������
-				 const_iterator ���� ���� iterator ���ͣ�
-				 ��iterator �������� const_iterator ����
+		b.迭代器：
+			 当map 对象使用 const 修饰时，则  begin() 和 end() 方法返回的是 const_iterator 类型迭代器：
+				 const_iterator 可以 引用 iterator 类型，
+				 但iterator 不能引用 const_iterator 类型
+			当类方法使用const修饰时，则 该类成员的 map 的begin() 和end()方法返回的也是 const_iterator 类型迭代器
 			 template <typename T, typename V>
 				void showMap(const map<T,V> & m)
 				{
-					 //��ָ�� typename �ؼ���
+					 //需指定 typename 关键字
 				  typename map<T,V>::const_iterator it;
 				 
 				   for(it=m.begin();it!=m.end(); ++it)
@@ -418,11 +419,193 @@ __FILE__ ��ʾ��ǰ�ļ����� __LINE__ ��ʾ ��ǰ����
 					  cout << it->first << ", " << it->second << endl;
 					}
 				}
-		c.ɾ��Ԫ�أ�
+			c++11 中可以使用 基于范围的for:
+				for(auto &p : dataMap)
+				  {
+					cout << p.first << ", " << p.second << endl;
+				  }
+			其中 p 为pair<string,Data> 对象,即键值对 
+			
+		c.删除元素：
 				 void erase (iterator position);
 
 				size_type erase (const key_type& k);
 	
 			     void erase (iterator first, iterator last);
-				����ָ���������� ָ��ָ��Ԫ��λ�� �ĵ����������������Χ
-				��Ϊ iterator ���ͣ�������Ϊ const_iterator ����		
+				可以指定键名，或 指向指定元素位置 的迭代器，或迭代器范围
+				需为 iterator 类型，而不能为 const_iterator 类型		
+
+	(3) multimap 位于 map 头文件
+		  多个元素可以使用同一个键名，根据键名 对元素进行排序存储 
+		  multimap 将所有的同一个键的元素保存在一起，但并没有使用键名进行分类存储，
+		  而是与 map 相同的键名值对
+		  因此仍可以通过 begin() end() 返回的迭代器遍历所有元素
+		  
+		  a. 插入元素：
+				insert(pair) 可以重复插入相同的元素，因此若要保持唯一，应在插入前检查
+				multimap 不支持 operator[]
+			
+		  b.获取指定键名的所有元素：
+				lower_bound(key) upper_bound(key)
+				分别获取 指向 指定键名的第一个元素 和 最后一个元素 的迭代器
+					  multimap<string,string> mBuddies;
+
+					multimap<string,string>::iterator start = mBuddies.lower_bound(name);
+  
+					multimap<string,string>::iterator end = mBuddies.upper_bound(name);
+				也可以使用 equal_range(key) 返回一个 pair 对象 ，
+					其中first 为 指向第一个元素的迭代器，
+						second 为 指向第二个元素的迭代器，
+					pair<multimap<string,string>::iterator,
+						multimap<string,string>::iterator> range=mBuddies.equal_range(name);
+    
+						multimap<string,string>::iterator it;
+						for(it=range.first; it!=range.second; ++it)
+						{
+						  std::cout << "First: " << it->first << std::endl;
+						  std::cout << "Second: " << it->second << std::endl;
+						}
+			其中 迭代器指向的 是键值对的pair 对象,其中 first 为键名， second 为键值 
+		
+		c. 删除元素：	
+				void erase (iterator position);
+				删除 迭代器指定的元素
+				例：删除 指定的键名和键值 
+				  pair<multimap<string,string>::iterator,
+						multimap<string,string>::iterator>
+					range= mBuddies.equal_range(name);
+					  multimap<string,string>::iterator it;
+					  for(it=range.first;it!=range.second; ++it)
+						{
+						//判断是否为指定的键名
+						  if(it->second==buddy)
+							{
+							  mBuddies.erase(it);
+							  break;
+							}
+						}
+				size_type erase (const key_type& k);
+					删除键名为 指定的k  的所有键值对
+			     void erase (iterator first, iterator last);
+				删除 迭代器范围 内的所有键值对，
+					两个迭代器指定的键名可以不同，按照键名的排序后的范围
+					multimap<string,string>::iterator start = mBuddies.lower_bound(name1);
+				  multimap<string,string>::iterator end = mBuddies.upper_bound(name2);
+				  start++;
+				  end--;
+				  std::cout << start->first <<  ", " << start->second << std::endl;
+				  std::cout << end->first << ", " << end->second << std::endl;
+				  mBuddies.erase(start,end);
+	(4)set 位于set 头文件
+			按照元素值顺序，保存的元素 且不能插入重复元素， 不支持 operator[] 操作，
+			a.插入：insert()
+				set<string> myset={"abc","ged","bdg","kere","mbkdje","ckge","aa","ll"};
+
+		
+				myset.insert(myset.end(),"kere");
+			不能插入相同的元素
+			b.迭代器：
+				  set<string>::iterator it;
+					for(it=myset.begin();it!=myset.end();++it)
+						{
+						  std::cout << *it <<", ";
+						}
+			c.查找指定元素，返回指向该元素的迭代器：
+				set<string>::iterator it1;
+				it1=myset.find("ckge");
+			d.删除：
+				  myset.erase(it,it1);
+				通过迭代器区间删除
+			e.count() 返回元素出现的次数，可判断是否存在某元素：
+				myset.count("aa") ==1
+	(5)C++11 添加的容器：
+			unordered_map unordered_multimap 位于 unordered_map 头文件中
+			unordered_set unordered_multiset 位于 unordered_set 头文件中
+		  不会对元素进行排序，而是使用 散列函数（hast function）进行查找
+		  散列函数 将 键名转为 索引，该索引 指向的元素为 桶(bucket),
+			每个桶都有特定的索引，
+			散列函数的结果不一定为唯一的，因此，当多个键名散列的结果指向同一个桶索引时，
+			则为一次冲突，
+			可以通过 二次重散列或线性链方法解决，
+			其中 在使用 线性链时， 桶不直接包含与键关联的 数据值，而是包含一个指向线性链的指针，
+				该线性链表 包含特定桶的所有元素
+		以 unordered_map 为例：
+			
+			a.插入操作 与map 相同，
+			b.迭代器：	
+			unordered_map<string,string>::iterator it;
+			  for(it=um.begin();it!=um.end();++it)
+				{
+				  cout <<  it->first << ", " << it->second << endl;
+				}
+			c.删除 与map 相同，	由于 unordered_map 为无序的，因此 删除 使用 迭代器指定区间，
+				则 可能结果不可预料
+			d.桶 操作：
+				size_type bucket(key) 返回指定键名所在的 桶 索引，
+						即使 该键名不存在，也会通过 散列函数计算并返回 应该定位到的桶索引
+				bucket_count() 返回 桶的总数，
+					桶的索引是连续的，即使有的桶没有数据
+				bucket_size(int ) 返回指定索引 的桶中包含的元素个数
+				load_factor() 返回平均每个桶中包含的元素个数
+				根据桶 进行遍历 unordered_map:
+					begin() end() cbegin() end() 重载了 接受一个桶索引参数的形式，
+					返回 unordered_map<string,string>::local_iterator
+						或 unordered_map<string,string>::const_local_iterator
+					进行遍历指定桶中的元素：
+					unsigned int n =um.bucket_count();
+					  for(unsigned int i=0; i<n; ++i)
+						{
+						  cout << "Bucket #" <<i << "contains: ";
+						  for(unordered_map<string,string>::local_iterator local_it=um.begin(i);
+							  local_it !=um.end(i);
+							  ++local_it
+							  )
+							{
+							  cout << local_it->first << ", " << local_it->second << "; ";
+							}
+						  cout << endl;
+						}
+				local_iterator 和 iterator 不能相互引用	
+	(6)其他容器：
+			bitset 位与 bitset头文件
+			固定长度、一个位只能是 1 或0，
+			模板非类型参数指定位大小
+			a. 构造函数：
+				 默认构造函数， 将所有位设置为0
+				 bitset<10> myBitset;
+				cout << myBitset << endl; // 00000000000
+				还可以接受 string 对象 初始化 位
+				  bitset<8>foo(string("11111111"));
+				其中，参数必须为string对象，不能为char*数组形式
+			b.设置指定位的值	
+				set() 将所有位设置为 1
+				
+				  myBitset.set();
+				  cout << myBitset << endl;
+				set(pos,value=true) 设置指定位的值，默认值为1
+				
+				 myBitset.set(3,0);
+				 myBitset.set(5,0);
+				myBitset.set(5,10); //设置后仍为1
+				cout << myBitset << endl;
+			c.清空指定位的值
+				reset() 清空所有位的值
+				reset(pos) 将指定位的值清空为0
+			d. flip() 翻转所有位值，原位为1 则设置为0；原位为0，则设置为1
+			e. count() 获取 值为1 的位 的个数
+				size() 返回 位的总位数，
+				myBitset.size() - myBitset.count() 返回 值为0 的位个数
+			f. 获取指定位的值：
+				operator[]
+				test(pos) 当指定位值为1时，返回true,否则返回false
+				any() 任意位 有设置为1，则返回 true
+				none() 所有位都为0，则返回true
+				all() 所有位 都为1，则返回true
+			g. 支持 位运算：
+				 cout << (myBitset & foo) << endl;  //与
+				  cout << (myBitset | foo) << endl; //或
+				  cout << (myBitset ^ foo) << endl; //异或
+				  cout << ~foo << endl; //取反
+				  foo <<=4; //位移，并赋值
+				  cout << foo << endl;
+							

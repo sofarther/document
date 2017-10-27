@@ -1,0 +1,190 @@
+2017.10.27
+1. find() find_if():
+	(1) find(start,end,value)
+	指定范围进行值匹配，并返回 第一个匹配到的指向 容器中匹配到的元素的 迭代器
+	若没有匹配到该值，则返回 参数中指定的 end, 而不是容器的end() 方法返回的迭代器
+	     vector<int> myVector;
+
+	   auto end=myVector.end();
+      end--;
+      end--;
+      auto it = find(myVector.begin(),end,num);
+      if(it ==end)
+        {
+          cout << "Could not find " << num << endl;
+          cout << "it: " << *it << endl;
+        }else
+        {
+          cout << "Found " << *it << endl;
+        }
+   (2) find_if(start,end function)
+		指定范围，将每个元素传入， function 返回为 true 时，则表示匹配到的元素，并返回该元素的迭代器，
+			只返回第一个匹配到的元素迭代器，
+			若没有匹配则返回 参数中指定的 end, 而不是容器的end() 方法返回的迭代器
+			
+			bool perfectScore(int num)
+			{
+			  return num>=60;
+			}
+
+			auto it = find_if(myVector.begin(),end,perfectScore);
+
+			  if(it== end)
+				{
+				  cout << "No perfect scores" << endl;
+				}
+			  else{
+				while(true)
+				  {
+					cout << "Found a perfect score of " << *it << endl;
+					//需移动上次匹配到的迭代器到下个位置
+					 it = find_if(++it,end,perfectScore);
+					 if(it == end)
+					   {
+						 break;
+					   }
+
+				  }
+			  }
+	(3)accumulate(start,end,init,function)
+		位于 numeric 头文件
+		将 init 初始值 和 第一个元素，传入到 function， 并将返回结果作为下次调用 function 
+		的第一个参数，将第二个元素作为第二个参数，依次运行，并将最后结果返回
+		其中 当 function没有指定时， 则为+运算
+			//指定的function 参数， 第一个参数为 累加值， 第二个参数为 元素值
+			int product(int num1, int num2)
+			{
+			  cout << num1 << ", " << num2 << endl;
+			  return num1*num2 ;
+			}
+			double multi = accumulate(myVector.begin(),myVector.end(),1,product);
+
+			
+2. lambda 表达式：
+		[capture_block](parameters) mutable exception_specification->return_type{ body }  
+		 lambda表达式包含以下部分：
+		捕捉块(catpure block): 指定如何捕捉所在作用域中的变量，并供给lambda主体使用。
+		
+			1).[]不捕获任何变量。
+
+			2).[&]捕获外部作用域中所有变量，并作为引用在函数体中使用（按引用捕获）。
+
+			3).[=]捕获外部作用域中所有变量，并作为副本在函数体中使用(按值捕获)。
+
+			4).[=,&foo]按值捕获外部作用域中所有变量，并按引用捕获foo变量。
+
+			5).[bar]按值捕获bar变量，同时不捕获其他变量。
+
+			6).[this]捕获当前类中的this指针，让lambda表达式拥有和当前类成员函数同样的访问权限。
+					如果已经使用了&或者=，就默认添加此选项。
+					捕获this的目的是可以在lamda中使用当前类的成员函数和成员变量
+		参数(parameter): (可选)lambda表达式使用的参数列表。
+				只有在不使用任何参数，并且没有自定mutable、一个exception_specification 
+				和一个return_type的情况下可以忽略该列表，
+				
+		参数列表和普通函数的参数列表类似，区别如下：
+				参数不能有默认值。
+				不允许变长参数列表。
+				不允许未命名的参数。
+		mutable：（可选）如果所在作用域的变量是通过值捕捉到，那么lambda表达式主体中可以使用这些变量的副本。
+					这些副本默认标记为const，因此lambda表达式的主体不能修改这些副本的值。
+					如果lambda表达式标记为mutable，那么这些副本则不是const，因此主体可以修改这些本地副本。
+					
+		exception_specification：（可选）用于指定lambda可以抛出的异常。
+		return_type：（可选）返回值的类型。
+				如果忽略了return_type，那么编译器会根据以下原则判断返回类型：
+							如果lambda表达式主体的形式为{return expression;}
+							那么表达式return_type的类型为expression的类型。
+							其他情况下的return_type为void。
+		其中 当需使用 mutable 时，则必须 添加参数列表， 即使没有参数()
+			
+			Test t(10);
+			//报错，传入的为 t 为const 不能进行修改属性值
+		   [=]{t.setVal(20);}();
+		 //指定 mutable , 在 mutable 前需添加参数列表 () 
+		[=]() mutable {t.setVal(20);}(); //后面的() 表示立即执行 
+		cout << t.getVal() <<endl; //值传递，因此不会影响到 外部的 t对象
+		 //引用传递， 会影响到 外部的t 对象
+		[&](int x) mutable {t.setVal(x);}(100);
+  
+	(1) 可以将 lambda 表达式赋值到一个变量，
+		  auto fn =[=]{cout << t.getVal() <<endl;};
+		lambda 表达式 在定义时 会捕捉的变量 到lambda 表达式中，
+			若为 值捕捉，则捕捉的变量 值为定义时的变量值，
+			因此 在 调用 该 lambda 表达式前，修改该值，不会影响到 lambda 内中的值
+			若为 引用捕捉，则调用 该 lambda 表达式前，修改该值，仍会影响到 lambda 内中的值
+ 		t.setVal(30);
+		fn(); //仍为 100
+		 auto fn1 =[&]{cout << t.getVal() <<endl;};	
+		 t.setVal(30);
+		fn1(); //修改为 30
+	(2)在类方法中捕捉 this :
+			class Test
+				{
+				private:
+				  int mVal;
+				public:
+				  Test(int val){mVal=val;}
+				  int getVal() const {return mVal;}
+				  void setVal(int v) {mVal=v;};
+
+				  void func(int x, int y)
+				  {
+					//auto f1=[]{return mVal;}; //error need to catch this
+					auto f2=[=]{return mVal+x +y;}; //ok
+					auto f3=[&]{return mVal- x -y;}; //ok
+					auto f4=[this]{return mVal;}; //ok
+					//auto f5=[this]{return mVal +x +y;}; // error need to catch x and y
+					auto f6=[this,x,y]{return mVal +x +y;}; //ok
+					auto f7=[this]{return mVal++;}; //ok  enable to modify the member
+					f7();
+					cout << mVal << endl;
+				  }
+				};
+		其中 f7 中，虽没有使用mutable，但仍 可以修改成员属性的值
+		
+	(3)lambda 表达式 作为函数返回 类型：
+			function<T> 位于 functional 头文件， 可以绑定到任何可被调用的对象，
+			如 仿函数、成员函数指针 函数指针 lambda 表达式
+			function<int(void)> multiplyBy2Lambda(int x)
+			{
+			  return [=]()->int{return 2*x;};
+			}
+			其中 function<int(void)> 表示 返回类型 int 参数列表为空 的函数指针
+			  auto fn2 = multiplyBy2Lambda(400);
+				cout << fn2() << endl; //800
+	(4)作为函数实参：
+			void lambdaParam(int i, const function<double(int)> & callback)
+			{
+			  cout << callback(i) << endl;
+			}
+		传入 lambda 参数：
+			  lambdaParam(20,[](int x){return sqrt(x);});
+	   在 算法中的应用：
+		a. count_if():
+			vector<int> vec={1,2,3,4,5,6,7,8,9,0};
+			  int value=5;
+			  int callTime=0;
+			  int count = count_if(vec.begin(),vec.end(),
+								   [=,&callTime](int i) ->bool{callTime++; return i>value;}
+								   );
+			  cout << "count : " << count << ", call times: " << callTime << endl;
+		
+	  b.generate(): 根据指定的函数返回值，填充指定的容器		
+				auto begin = vec.begin();
+			  auto end =vec.end();
+			  generate(begin+3,end-2,[&value](){value*=2; return value;});
+		
+		generate_n() 填充 指定 容器开始填充的位置迭代器，和填充的个数
+					其中 该容器 大小必须能够容纳 指定的个数，否则会截取填充
+			  list<int> li(4);
+			  value=1;
+			  //只填充 4个元素
+			  generate_n(li.begin(),5,[&value]{value*=2; return value; });
+			  
+	c.for_each() 遍历容器：	  
+			  int index=0;
+			  for_each(li.begin(),li.end(),[&index](int i){cout << "Value " <<(index++)
+																<<": " << i << endl;
+				  });
+ 
