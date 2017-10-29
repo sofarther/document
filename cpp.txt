@@ -334,8 +334,12 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 			然后再调用pop()方法
 			back()获取尾部元素引用
 	priority_queue() 位于 queue 头文件，
-			通过 元素的 operator< 运算 判断元素的优先级，优先级高的先弹出
-			故 添加到priority_queue 元素的类 有该运算操作符
+			默认下通过 元素的 operator< 运算 (故 添加到priority_queue 元素的类 有该运算操作符)判断元素的优先级，
+			当比较函数返回true时,表示第一个参数 在第二个参数前，
+			而位置在前的元素，表示优先级较低，
+			优先级高的先弹出
+			指定 使用 greater<int> 比较函数(位于 functional 头文件)
+ 		priority_queue<int,vector<int>,greater<int> > my_queue;
 			top() 返回优先级高的元素
 			pop()将优先级高的元素弹出
 	statck 栈：

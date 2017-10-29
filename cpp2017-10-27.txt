@@ -188,3 +188,374 @@
 																<<": " << i << endl;
 				  });
  
+ 3. 函数对象：在类定义中通过实现 函数调用() 运算重载，即为函数对象
+ 	 C++ 中预定义的 函数对象 位于 functional 头文件
+ 	 double mult = accumulate(vec.begin(),vec.end(),1,multiplies<int>());
+   	其中 multiplies<int>() 创建 一个 multiplies<int> 对象，作为回调 调用
+   	 在模板中指定比较函数：
+   		 指定 使用 greater<int> 比较函数
+ 		priority_queue<int,vector<int>,greater<int> > my_queue;
+ 	(1) bind() 函数适配器 c++11 中
+ 			将参数绑定到 指定的位置，并返回已绑定 参数后的函数
+ 			bind() 的 绑定参数位置 即为 调用该函数时的参数形式
+ 			void func1(int num,const string & s)
+			{
+				cout <<"func1("<<num <<", " <<s<<")\n";
+			}
+		 
+    auto f1=bind(func1,placeholders::_1,str);
+    其中  placeholders::_1 表示调用 bind()返回的函数 时，传入的第一个实参
+   			而不是将 str绑定到第一个参数
+    f1(16); //调用执行返回的寒酸
+    //调整参数顺序
+    function<void(const string&,int)>
+        f2 =bind(func1,placeholders::_2,placeholders::_1);
+     返回的类型 为function ,   
+    f2(str,20);
+    当 函数有多个重载形式时，在使用bind()时，必须指定该函数的重载的形式
+    auto f3=bind((void(*)(const string &,int))func1,placeholders::_1,40);
+    
+    f3(str);
+    查找 小于等于4 的元素
+    auto it = find_if(vec.begin(),vec.end(),bind(less_equal<int>(),placeholders::_1,4));
+    if(it == vec.end())
+    {
+        cout << "not fonund\n";
+    }
+    else
+    {
+        cout <<*it << endl;
+    }
+  	(2) bind1st() bind2nd() C++11 前可调用 ,在 C++11 中已废弃
+  	   分别用于绑定第一个参数 和第二个参数：
+  		transform(gr8.begin(),gr8.end(),prod.begin(),
+				bind1st(multiplies<double>(),2.5)
+			);
+		transform(gr8.begin(),gr8.end(),prod.begin(),
+			bind2nd(divides<double>(),2.0)
+		);
+		 bind1st() bind2nd() 绑定的函数形式 只能是函数对象，struct 类型，不能为函数指针，
+		 返回 binder1st<T> binder2nd<T> 对象
+		 其中， 函数对象定义：
+		 		class f
+				{
+				public:
+					typedef int first_argument_type;
+					typedef  string  second_argument_type;
+					typedef void  result_type;
+
+					result_type operator()(first_argument_type num,const second_argument_type  & s,int m=0) const
+						{
+							cout <<"f("<<num <<", " <<s<<"," << m <<")\n";
+						}
+		
+				};
+				说明： 必须定义first_argument_type second_argument_type result_type 类型，
+						且 在定义时 不能使用 const 或 &
+						operator() 操作符 参数形式 前两个参数必须使用定义的 类型，
+								可以为多个参数，但多余的参数不能在绑定和调用时，传入实参，因此只能为默认值
+			进行绑定：
+				  f pf;
+     			binder1st<f> f4 =bind1st(pf,80);
+     		调用： f4(str);
+     		
+     	(3)not1() not2()
+     		not1() 支持 操作数为 一个的 一元函数，
+     		返回unary_negate<T >对象
+     			当使用bind1st() 或bind2nd() 绑定参数后，可以将二元函数转为一元，从而可以使用not1()
+     				不支持 使用 bind()返回的function 对象
+     			   unary_negate<binder2nd<less_equal<int> > > neg= not1(bind2nd(less_equal<int>(),10));
+    				cout << neg(5) <<endl; //0
+    				
+    		 it=find_if(vec.begin(),vec.end(),not1(bind2nd(less_equal<int>(),7)));		
+    				
+    		not2() 支持操作数为 两个的二元函数
+    			返回	binary_negate<T>对象	
+    	binary_negate<less_equal<int> > b_neg =not2(less_equal<int>());
+    	cout << b_neg(300,200) <<endl; //1
+ 	
+ 		(4)转化类方法 为回调函数：
+ 		  a.在 C++11中 可以通过 mem_fn() 将类方法转为普通函数进行调用，
+ 			其中 在调用时，第一个参数为该类对象
+ 			支持多个参数调用，可以通过不同的参数来调用该方法的重载形式
+ 				但不支持 默认参数，因此必须将方法定义的所有参数都传入：
+ 				void findEmptyString1(const vector<string> & str_vec)
+				{
+					auto end=str_vec.end();
+		
+					auto it = find_if(str_vec.begin(),end,mem_fn(&string::empty));
+
+					if(it == end)
+					{
+						cout << "No empty string\n";
+					}
+					else
+					{
+						cout <<"empty string position: " << it - str_vec.begin() <<endl;
+					}
+    
+				}
+				mem_fn() 返回的回调函数，既支持使用对象调用，也支持使用对象指针调用	
+				//一个参数 的方法
+				auto mem_f2 = mem_fn(&string::push_back);
+				mem_f2(str_vec[2],'t');
+				cout << str_vec[2]<<endl;
+			
+				//mem_fn支持多个参数， 但在调用时，必须将参数全部传入，不支持默认参数
+				//因此可以进行重载调用
+				auto mem_f3 =mem_fn(&string::substr);
+				cout << mem_f3(str_vec[1],2,3) << endl;
+		
+		b.c++11前 可以通过 mem_fun() 将方法转为 mem_fun_t(没有参数的方法) 或mem_fun1_type(1个参数的方法)
+					mem_fun_ref() 将方法转为 mem_fun_ref_t(没有参数的方法)或mem_fun1_ref_type（1个参数的方法）
+					不支持多个参数
+					其中 mem_fun()转化后的方法 只能传入 对象指针进行调用，
+					 	mem_fun_ref() 转化后的方法 只能传入对象进行调用
+				    	
+  					mem_fun1_ref_t<void,string,char> mem_f1_t = mem_fun_ref(&string::push_back);
+					mem_f1_t(str_vec[1],'m');
+
+					cout << str_vec[1] << endl;
+					
+					//不支持多个参数 的方法,模板参数中只能为 3个类型
+					//mem_fun1_ref_t<string,string,int> mem_f2_t = mem_fun_ref(&string::substr);
+					//cout << mem_f2_t(str_vec[1],2) <<endl;
+		
+					auto it=str_vec[2].begin();
+					++it;
+					//模板中的参数个数 指定了要调用的 方法的重载的形式
+					//必须为 const_iterator 类型，不能为 iterator 类型，尽管 erase() 定义的参数类型为
+					//iterator
+					mem_fun1_ref_t<string::iterator,string,string::const_iterator>
+									 mem_f3_t = mem_fun_ref(&string::erase);
+					cout << *(mem_f3_t(str_vec[2], it))<<endl;
+    	(5)将函数指针进行封装为 函数对象，可作为参数传入 调用 not1() not2() bind1st() bind2nd()
+    			ptr_fun() 返回 pointer_to_unary_function<Arg,Result>（一个参数）
+    						或 pointer_to_binary_function<Arg1,Arg2,Result> （两个参数）
+    		 a. 对于使用const 修饰的参数，必须在模板参数中指定
+          			pointer_to_binary_function<int,const string& ,void>p_fun = ptr_fun(func1);
+      
+             b.  binder1st binder2nd 对象不能接受 first_argument_type 或 second_argument_type
+     				 为 已使用 const 修饰的 函数对象 
+     			因为 在 binder1st binder2nd 的 operator() 中已使用const 修饰的 参数类型
+     			而 ptr_fun() 在 对象函数进行装饰时，会将函数定义的参数类型作为
+     			first_argument_type 或 second_argument_type，
+     			 因此若 参数使用const 修饰
+     		   则不能 使用 bind1st() 或 bind2nd() 进行参数绑定
+                     
+             pointer_to_binary_function<int,string ,void>p_fun = ptr_fun(func3);
+    
+     		 binder1st<pointer_to_binary_function<int, string,void> >
+             f5=bind1st(p_fun,70);
+             f5(str);
+			
+			c. not1() not2() 支持 first_argument_type 或 second_argument_type
+     							 为 已使用 const 修饰的 函数对象 
+				auto np_fun = not2(ptr_fun(func4));
+				cout << np_fun(100,str) << endl;
+		(6)自定义函数对象：
+				一个参数的函数对象可以继承 unary_function<T1,T2> 具体模板
+				两个参数的函数对象可以继承 binary_function<T1,T2,T3> 具体模板
+				class myIsDigit : public unary_function<char,bool>
+				{
+				public:
+					bool operator()(char c) const{return ::isdigit(c);}
+				};
+				
+				class MyFunc :public binary_function<int,string,void>
+				{
+				public:
+					void operator()(int n, const string & s)
+						{
+							cout <<"myFunc("<<n <<", " <<s<<")\n";
+						}
+				};
+		   说明： 应将 operator() 运算定义为 const, 这样才能在在容器方法中使用
+
+4.算法：	
+		大部分算法 位于 algorithm 头文件，部分位于numeric 头文件，
+		位于 std 命名空间
+		(1)工具算法：
+				max() min() swap() minmax()
+				其中 max() min() 通过 参数的 operator<() 操作符运算判断
+					在C++11前，只接受两个参数，在C++11后可以 通过 {} 统一初始化 形式传入多个参数
+						int x1=2,x2=9,x3=3,x4=12;
+						cout << "Max of 4 elements is " << max({x1,x2,x3,x4}) <<endl;
+						cout <<"Min of 4 elements is " << min({x1,x2,x3,x4}) <<endl;
+					
+					C++11 支持 minmax()返回 由最小值和最大值 组成的pair对象
+						auto pair1 =minmax({x1,x2,x3,x4});
+						cout << "minMax of 4 elements is <"
+							 <<pair1.first <<", " << pair1.second << ">\n";
+						   
+					swap(val1,val2)交换传入的两个参数值
+				C 语言中也包含 max() min() 函数，但是由宏实现的，
+			 为确保使用 C++ 中的 min() max()， 应使用 std 命名空间
+			 
+		(2)查找：
+			a.查找最大值和最小值：
+				max_element() min_element() minmax_element()
+			
+				 vector<int> myints={3,7,3,8,8,6,2,63,6,2,8,8,8,35,2,8,6,2,8,34,26};
+				 //返回最小值 第一次出现的 元素的 迭代器， 
+				vector<int>::iterator it = min_element(myints.begin(),myints.end());
+				//第一个最小值的位置
+				cout << "the smallest element is " <<*it
+					 <<", postion: " << (it - myints.begin() )<<endl;
+   			
+   			 it = max_element(myints.begin(),myints.end());
+   	
+       	  minmax_element() C++11中使用，获取最大值和最小值的pair 对象
+			pair<vector<int>::iterator,vector<int>::iterator> pair2=
+				minmax_element(myints.begin(),myints.end());
+			cout << "min element is " << *(pair2.first) << endl;
+			cout << "max element is " <<*(pair2.second) << endl;
+	 		
+	 	b.查找 第一次连续重复出现的元素的开始的位置迭代器：
+	 			必须为连续的重复，而不是间断的重复
+	 			it = adjacent_find(myints.begin(),myints.end());
+	 		指定连续重复的次数：
+	 			查找 连续重复出现 3个8 的开始的位置
+	 			 it =search_n(myints.begin(),myints.end(),3,8);		 	
+	 	c.查找指定的子序列：
+	 			vector<int> sub={6,2,8};
+	 			//search() 获取第一次出现的 子序列的开始位置的迭代器
+				it =search(myints.begin(),myints.end(),sub.begin(),sub.end());
+				cout << "first sub postion: " << (it-myints.begin())<<endl;
+				//find_end()查找最后一次出现的 子序列的开始位置的迭代器
+				it=find_end(myints.begin(),myints.end(),sub.begin(),sub.end());
+				cout << "last sub postion: " << (it-myints.begin())<<endl;
+	 		 可以修改 指定的子序列的区间
+	 	d.查找 子序列中的任意元素的第一次出现的位置迭代器：
+	 			find_first_of()
+	 		 it = find_first_of(myints.begin(),myints.end(),sub.begin(),--sub.end());	
+	 		 即查找 在 myints 中 6 或2 第一次出现的位置 
+	 	f.	 
+	 		all_of() 当指定的范围内全部元素 在回调函数返回true 时，则该函数返回true
+	 		
+	 		vector<int>::iterator end= vec1.end(); 
+	 	
+			if(all_of(vec1.begin(),--end,[](int i){return i==1;}))
+			{
+				cout << "all vector[begin, end-1]\n";
+			}
+			
+			any_of() 当指定的范围内任意元素 在回调函数返回true 时，则该函数返回true
+			
+			vector<int> vec2(vec1.size());
+			int i=0;
+			generate(vec2.begin(),vec2.end(),[&vec1,&i]{return vec1[i++]==1?0:1;});
+			end = vec2.end();
+			--end;
+			if(any_of(vec2.begin(),end,[](int i){return i==1;}))
+			{
+				cout << "at least has a 1 \n";
+			}
+			none_of() 当指定的范围内所有元素 在回调函数返回false 时，则该函数返回true
+			if(none_of(vec2.begin(),end,[](int i){return i==1;}))
+			{
+				cout << "none element is 1\n";
+			}
+		g.有的查找算法需要先进行对容器排序，
+				binary_search() lower_bound() upper_bound() equal_range()
+				支持的排序容器： vector map multimap set multiset
+    (3)	数值计算、比较算法、操作算法
+    	数值计算的算法有： accumulate() inner_product() 计算内乘积
+    		    vector<int> v1={1,2,3,4};
+				vector<int> v2={9,8,7,6};
+				//(1*9)+(2*8)+(3*7)+(4*6)
+				cout << inner_product(v1.cbegin(),v1.cend(),v2.cbegin(),0) <<endl;
+ 		比较算法：主要是用于比较不同容器类型的 元素序列
+ 			a. equal(first_begin,first_end,second_begin): 两个容器的指定范围内的每个元素 的operator=() 运算 返回true
+ 					 若两个容器的元素长度不同，但指定的比较范围内元素相同时，则仍返回true
+ 					 
+ 					 vector<int> vec_ints={22,35,54,35,53,35,76,31,24,15,64};
+					list<int> list_ints={22,35,54,35,53,35,76,31,34,15};
+					//返回 false
+					if(equal(vec_ints.begin(),vec_ints.end(), list_ints.begin()))
+					{
+						cout << "the two containers have equal elements\n";
+					}
+			
+			b.mismatch(first_begin,first_end,second_begin): 返回比较的两个容器的第一个不同的元素 的两个容器的迭代器 组成的pair
+					其中 first 为 第一个和第二个参数指定的范围的容器中的迭代器
+						second 为 第三个 参数指定的范围开始的容器中的迭代器
+					list<int> list_ints1={22,35,54,35,52,33,66,31,24,15,64,22,43};    
+		
+					pair<vector<int>::iterator,list<int>::iterator> pair1
+						=mismatch(vec_ints.begin(),vec_ints.end(),list_ints1.begin());
+
+					cout << "the same element: ";
+					for(auto i=vec_ints.begin();i!= pair1.first;++i)
+					{
+						cout <<*i <<endl;
+					}
+					cout << "the different elements in vector: ";
+					for(auto i=pair1.first; i!=vec_ints.end(); ++i)
+					{
+						cout <<*i <<endl;
+					}
+					cout << "the different elements in list1: ";
+					for(auto i=pair1.second;i!=list_ints1.end();++i)
+					{
+						cout <<*i <<endl;
+					}
+		   c. lexicographical_compare(first_bigin,first_end,second_begin,second_end)	
+				当 遍历 前两个参数的范围中的元素 和三、四参数的范围内的对应的元素 比较第一个不同时
+				若前者小于 后者，则返回true，否则返回false
+				若遍历完 前者范围，两个范围内的元素都相同 时，则若后者仍有元素，即后者范围大于前者
+				则返回true,否则 返回false
+			因此会先按顺序判断 元素大小，若没有结果，再判断长度
+				if(lexicographical_compare(vec_ints.begin(),vec_ints.end(), list_ints.begin(),list_ints.end()))
+				{
+					cout << "vect_ints is first \n";
+				}
+    	操作算法： for_each(begin,end,callback)
+    			for_each 按值传递 回调函数对象，而不是按引用传递，返回结果为回调函数对象的副本
+    			class SumAndProd :public unary_function<int,void>
+				{
+				public:
+					SumAndProd():sum(0),prod(1){}
+					void operator()(int elem);
+					int sum;
+					int prod;
+				};
+				void SumAndProd::operator()(int elem)
+				{
+					sum+=elem;
+					prod*=elem;
+				}
+			//使用函数对象
+			SumAndProd func;
+			vector<int> vec_ints2={10,40,20,30};
+			//接受 for_each()返回的 函数对象，并获取保存的结果值
+			func = for_each(vec_ints2.begin(),vec_ints2.end(),func);
+			cout << "the sum is " << func.sum;
+			cout << "the product is " << func.prod <<endl;
+	(4):
+		a. iota(begin,end,init_val)
+		    		指定容器的开始结束范围，并设置 起始值，然后逐一累加填充到容器中
+		    		其中 起始值的类型必须实现了 operator++()操作
+			 vector<int> vec_ints3(4);
+
+    		iota(vec_ints3.begin(),vec_ints3.end(),5);
+   
+		b. transform()
+    	对每个元素传入到 回调函数中，并将返回结果保存到指定的新的容器
+    	结果容器可以和源容器相同
+    	 //将 vec_ints2 中的容器的每个元素 *2 并保存到 vec_ints3中
+   		 transform(vec_ints2.begin(),vec_ints2.end(),vec_ints3.begin(),
+              [](int a){return a*2;}
+        );
+   		//vec_ints2 中的容器的每个元素 +10 并保存到原容器中
+		transform(vec_ints2.begin(),vec_ints2.end(),vec_ints2.begin(),
+		          [](int a){return a+10;});
+	   
+    	使用两个源容器，回调函数为二元函数
+   		 transform(vec_ints2.begin(),vec_ints2.end(), //第一个源容器指定开始和结束范围
+   		 			vec_ints3.begin(), //第二个源容器 的开始位置
+              		vec_ints2.begin(), //结果保存的容器的开始位置
+              [](int a,int b){return a*b;});
+
+    	
+
