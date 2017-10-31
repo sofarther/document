@@ -279,7 +279,7 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 		//将指定的list 的 指定范围元素插入， 参数中list 的该范围的元素被删除
 			不包括 last 指向的元素
 		void splice ( iterator position, list<T,Allocator>& x, iterator first, iterator last );	
-	(3)merger() 合并list
+	(3)merge() 合并list
 		void merge (list& x, Compare comp);
 		 有序合并指定的list, 并会清空参数list
 		其中 Compare 指定排序的比较函数：

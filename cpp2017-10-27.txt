@@ -556,6 +556,315 @@
    		 			vec_ints3.begin(), //第二个源容器 的开始位置
               		vec_ints2.begin(), //结果保存的容器的开始位置
               [](int a,int b){return a*b;});
+	(5)复制容器 
+		a. copy(src_begin,src_end, des_begin);
+				vector<int> vec1, vec2;
+				vec1={20,50,30,10,60,40};
+				vec2.resize(vec1.size());
+				copy(vec1.cbegin(),vec1.cend(),vec2.begin());
+		b. copy_backward(src_begin,src_end, des_end)
+			反向复制，将源容器的元素从 结束位置开始复制，到指定目标的结束位置的之前位置，
+			并向前移动
+			因此 复制后的目标中元素的顺序和源容器中的元素顺序相同
+			  vector<int> vec3(vec1.size());
+				copy_backward(vec1.cbegin(),vec1.cend(),vec3.end());
+		c. copy_if(src_begin,src_end,des_begin,functional)
+			C++11 中使用
+			其中 functional 返回 bool 判断 元素是否被复制
+			copy_if() 返回 目标容器中的复制的最后的元素后的位置的迭代器
+			可以通过该返回值 删除多余的空间
+			//在不知复制的数量时，先分配与源容器大小相同的目标容器
+			auto endIt = copy_if(vec1.cbegin(),vec1.cend(),vec2.begin(),[](int i){return i%20==0;});
+			//删除多余的空间
+			vec2.erase(endIt,vec2.end());
+			当复制的元素数量 大于 目标容器的大小时，
+				则 使用 copy_if() 返回的 结束迭代器，可以访问到复制的所有元素
+				但使用 目标容器遍历时，则只能访问到容器范围内的复制的元素：
+				vec2.resize(2); //目标容器只能保存2个元素
+				cout << "copy num: " << (endIt - vec2.begin()) << endl; //输出 3
+				//可以访问到 所有复制的元素， 输出： 20 60 40
+				  for_each(vec2.begin(),endIt,[](int i){cout << i << endl;});
+				
+		d. copy_n(src_begin,num,des_begin)
+			C++11 中使用
+			其中 指定的 num 不要超过 源容器的end() 边界，否则将会复制未知的数据
+			 在得知 复制大小时，可以先修改目标容器的大小，然后进行复制
+			  size_t num=10;
+			  vector<int> vec4(num);
+			  //获取复制的大小
+			  num=min(num,vec1.size());
+			  //调整 目标容器大小
+			  vec4.resize(num);
+			  copy_n(vec1.cbegin(),num,vec4.begin());
+		e. partition_copy(src_begin,src_end,des_if_true_src,des_if_false_src,functional)
+			C++11 中使用
+			其中 当functional 返回 true时，则将元素复制到第三个参数指定的容器的位置
+					返回false时，则将 元素复制到 第四个参数指定的容器的位置
+			返回 第三个参数的容器复制的最后的元素的迭代器 和 第四个参数的容器复制的最后的元素的迭代器
+					组成的 pair 对象
+				其中 first 为	第三个参数的容器复制的最后的元素的迭代器
+					second 为 第四个参数的容器复制的最后的元素的迭代器
+				  vector<int> odd_vec, even_vec;
+				  odd_vec.resize(num);
+				  even_vec.resize(num);
 
-    	
+				  pair<vector<int>::iterator,vector<int>::iterator> pair1 
+						=partition_copy(vec1.cbegin(),vec1.cend(),
+									  even_vec.begin(),odd_vec.begin(),
+									[](int i){return i%20==0;}
+							   );
+				//删除多余的空间			   
+				  even_vec.erase(pair1.first,even_vec.end());
+				  odd_vec.erase(pair1.second,odd_vec.end());
+	(6)移动 C++11：
+			move() move_backward() 
+		容器中的元素 需实现 operator=(&&) 右值赋值运算
+			class MyClass
+				{
+				public:
+				  string mStr;
+				  MyClass(){}
+				  MyClass(const string & str):mStr(str) {}
+				  MyClass(const MyClass & cls){
+					mStr=cls.mStr;
+				  }
+				  MyClass & operator=(MyClass && rhs)
+				  {
+					if(this == &rhs)
+					  {
+						return *this;
+					  }
+					mStr=move(rhs.mStr); //调用 move() 移动 string 对象
+					cout << "Move operator=(mStr=" << mStr <<")\n";
+					return *this;
+				  }
+				};
+		说明：在实现了 右值赋值运算后，必须显式定义 复制构造函数，
+				MyClass(const MyClass & cls); 否则会报错
+  
+			  vector<MyClass> mycls_vec={MyClass("one"),MyClass(""),MyClass("Two"),MyClass("three"),MyClass("four")};
+			  list<MyClass> mycls_list(mycls_vec.size());
+			  move(mycls_vec.begin(),mycls_vec.end(),mycls_list.begin());
+			
+			//move_backward() 反向复制 
+			move_backward(mycls_vec.begin(),mycls_vec.end(),mycls_list.end());
+	(7)	替换：
+			a. replace(src_begin,src_end,value, replacement)
+				会替换 指定范围内 所有匹配到的 元素类型的 operator==()运算 与 value 值 相等的 元素 为 replacement
+				vector<string> str_vec={"First","Second","","Third","","Fifth"};
+				
+				replace(str_vec.begin(),str_vec.end(),string("Third"),string("Test"));
+			 说明： 当 元素类型为 string	时，不能直接使用 字符串常量作为 匹配和替换的参数，必须使用 string()封装为 string 对象
+			b. replace_if(src_begin,src_end,functional, replacement)
+				当functional 返回的为 true时，则进行替换，
+				会替换所有functional 返回的为 true 的值	
+			  replace_if(str_vec.begin(),str_vec.end(),[](const string & str){return str.empty();},"T");
+				其中  当 元素类型为 string	时，替换参数可以是 字符串常量
+			c. replace_copy(src_begin,src_end,des_begin,value,replacement)
+				将替换后的结果保存到指定的容器中，原容器内容不变
+				list<string> str_list(str_vec.size());
+				replace_copy(str_vec.begin(),str_vec.end(),str_list.begin(), string(""),string("HHH"));
+			d. replace_copy_if(src_begin,src_end,des_begin,functional,replacement)
+				将替换后的结果保存到指定的容器中，原容器内容不变
+			replace_copy_if(str_vec.begin(),str_vec.end(),str_list.begin(), [](const string & str){return str.empty();},"WWW");
+	(8) 删除 ：
+		a. remove(src_begin,src_end,value)
+			将 指定范围内 通过元素类型 的 operator==() 运算 匹配到与 value 相等 
+				的所有元素 移动到 参数中指定的范围的结束位置后（不是容器的end()返回的结束位置），
+			并返回 指向已移动的元素的开始位置的 迭代器
+			 vector<string>::iterator end=str_vec.end();
+				--end;
+			vector<string>::iterator access_end = remove(str_vec.begin(),end,"");
+			cout << (access_end ==end) <<endl ; //false
+			//仍可以遍历到移动的元素
+			 for_each(str_vec.begin(),str_vec.end(),[](const string & str){cout << str <<endl;});
+			//只访问保留的元素 
+			 for_each(str_vec.begin(),access_end,[](const string & str){cout << str <<endl;});
+		
+			//调用 erase() 删除不需要保留的元素
+				str_vec.erase(assess_end,str_vec.end());
+		b. remove_if(src_begin,src_end,functional)	
+			将 指定范围内 元素传入到 functional, 并返回true  
+					的所有元素 参数中指定的范围的结束位置后（不是容器的end()返回的结束位置），
+				并返回 指向已移动的元素的开始位置的 迭代器
+			vector<string>::iterator access_end = remove_if(str_vec.begin(),str_vec.end(),[](const string & str){return str.empty();});
+		c. remove_copy(src_begin,src_end,des_begin,value)  将移除掉的元素后 的结果的所有元素 复制到指定的目标容器
+						源容器的元素不变
+					返回 目标容器中的复制的最后的元素后的位置的迭代器
+		d. remove_copy_if(src_begin,src_end,des_begin,functional) 
+					同上
+						list<string>::iterator access_end = remove_copy_if(str_vec.begin(),end,
+																	 str_list.begin(),
+																	 [](const string & str){return str.empty();});
+
+
+					   cout << "Copy list elements : \n";
+					   for_each(str_list.begin(),access_end,[](const string & str){cout << str <<endl;});
+	(9) reverse(src_begin,src_end) 将指定的范围内元素顺序翻转，范围外元素不变
+		reverse_copy(src_begin,src_end,des_begin)   
+				将指定的范围内元素顺序翻转后添加到 目标容器中，不会复制 源容器中范围外的元素
+		   返回 目标容器中的复制的最后的元素后的位置的迭代器
+		   list<string>::iterator cp_end = reverse_copy(str_vec.begin(),end,str_list.begin());
+	
+	(10)分组：
+			a. partition(src_begin,src_end,functional)
+				将 funcational 返回 为true 的元素 放在前部分，返回 false 的元素放在后部分
+				并 返回 指向后部分 的第一个元素 迭代器
+			        auto part_end= partition(int_vec1.begin(),int_vec1.end(),[](int i){return i==1;});
+				修改源容器元素的顺序	
+			b.is_partitioned(src_begin,src_end,functional)
+				C++11 中使用
+				 根据指定的回调函数 判断 容器元素是否已分组
+				 不一定必须调用 partition()函数，只要符合分组形式即可，如
+				   vector<int> int_vec1={1,1,1,0,0};
+				   //true
+					is_partitioned(int_vec1.begin(),int_vec1.end(),[](int i){return i==1;})
+			c.partition_point(src_begin,src_end,functional) 
+				C++11 中使用，
+				必须指定的容器范围内的元素 已分组（或分组形式），否则返回传入的src_end 迭代器
+				返回 分组点，即 第一个 functional 返回 false 的元素的迭代器
+	(11)排序算法：
+			适用于 可随机访问的容器， vector deque array, 不能用于 list forward_list
+				list 和forward_list 可以调用 容器的 sort() 方法进行排序
+		a. sort(src_begin,src_end, compare_func) 
+			当没有指定 compare_func 时，按照 元素类型的 operator<() 运算比较 
+				当 比较函数 返回true 时，则传入的参数 原顺序不变（第一个参数为原顺序在前的元素）
+				  //从小到大排序
+				  sort(int_vec.begin(),int_vec.begin()+4);
+				//指定 比较函数
+				bool greater(int i, int j){return i>j;}
+				//从 大到小排序
+				sort(int_vec.begin()+4,int_vec.end(),::greater);
+				说明 当 引入了 std 命名空间时，由于在 algorithm 头文件中定义了 greater<T> 模板比较函数
+						因此若要使用 当前定义的 greater 函数，则需添加 :: 限定符引用
+		
+		b. partial_sort_copy(src_begin,src_end,des_begin,des_end,compare_func)
+			将排序后的结果复制到目标容器，
+			原容器元素不变
+		c. partial_sort(src_begin,src_middle, src_end,compare_func)
+				指定 src_middle 位置前 排序按照 compare_func 指定的比较函数 ，
+					在该位置及后则不进行排序
+					src_middle 为排序后的位置
+					 vector<int> myvector={4,8,2,6,5,9,1,3,7};
+				partial_sort (myvector.begin(), myvector.begin()+5, myvector.end(),::greater);
+				结果： 9,8,7,6,5,4,3,1,2,
+		
+		d. nth_element(src_begin,nth_element,src_end,compare_func)
+				指定的nth_element（从0开始） 将 比较函数返回 true 的元素 放在该元素前，false 则放在该元素后
+					前后元素的顺序不一定
+				  nth_element(int_vec.begin(),int_vec.begin()+5, int_vec.end());
+	
+		e. merge(src1_begin, src1_end,
+				 src2_begin, src2_end,	
+				des_begin, compare_func)
+			将已排序的 容器合并到 目标容器
+			返回 目标容器中的复制的最后的元素后的位置的迭代器，
+			要合并的容器可以是非排序的，但性能较差
+			若 要合并的容器 排序中指定了 比较函数时，则在合并时，也需指定该比较函数，否则将会
+				在已排序的基础上，再按照默认比较函数进行排序合并
+				
+				class lengthCmp
+				{
+				public:
+				  bool operator()(const string& s1,const string & s2)
+				  {
+					return s1.length()>s2.length();
+				  }
+				};
+				
+			  vector<string> str_list={"abcv","ert","bftue","mvketenf","wt","nbmdturtrf","ope","leot","ndkw","mbkfjer","ioped","wtfkdh"};
+				//定义比较函数对象
+			  lengthCmp len_cmp;
+			  sort(str_list.begin(),str_list.end(),len_cmp);
+			  
+			  deque<string> deq_str={"hekr","kdjfejk","kdjed","lr","bndje","kde"};
+			  sort(deq_str.begin(),deq_str.end(),len_cmp);
+			  size_t size = deq_str.size() + str_list.size();
+			  deque<string> des_str(size);
+			  /* 使用默认比较函数 合并
+			  merge(str_list.cbegin(),str_list.cend(),
+					deq_str.cbegin(),deq_str.cend(),
+					des_str.begin()
+					);
+			  */
+			  //指定 比较函数 合并
+			  merge(str_list.cbegin(),str_list.cend(),
+					deq_str.cbegin(),deq_str.cend(),
+					des_str.begin(),len_cmp
+					);
+	(12) 集合算法：
+			a. includes(src_begin,src_end,sub_begin,sub_end, compare_func)
+				判断 第一个和第二个参数指定的范围 是否包含 第三个和第四个参数指定的范围内的元素
+				必须将 两个范围内的元素 按照相同的比较函数 进行排序，
+					且在 includes() 中指定该比较函数，否则结果与预期结果不同
+					
+					list<int>int_list(myints,myints+10);
+				   int_list.sort();
+				  
+				  if(includes(int_list.begin(),int_list.end(),sub_vec1.begin(),sub_vec1.end()))
+					{
+					  cout << "sub_vec1 included in int_list\n";
+					}
+
+			b.set_union(src1_begin,src1_end,src2_begin,src2_end,
+						des_begin,compare_func
+					);		
+				取 	第一个和第二个参数指定的范围  第三个和第四个参数指定的范围
+					的并集，并放到指定的目标容器
+				返回 目标容器中的复制的最后的元素后的位置的迭代器
+				若 两个源容器任一容器的 元素没有排序，则只 将元素进行合并，
+				若 两个源容器都进行排序，则 对两个容器中的相同的元素进行唯一化，
+					但不会对 源容器中已存在的相同的元素进行唯一化
+				  list<int> int_list2={47,24,65,65,33,78,45,25,12,65};
+				  size_t size= int_list.size() + int_list2.size();
+				  int_list2.sort();
+				  vector<int> des_vec(size);
+				  auto des_end = set_union(int_list.begin(),int_list.end(),
+										   int_list2.begin(),int_list2.end(),
+										   des_vec.begin()
+										   );
+			c. set_intersection(src1_begin,src1_end,src2_begin,src2_end,
+						des_begin,compare_func)							   
+			取 	第一个和第二个参数指定的范围  第三个和第四个参数指定的范围
+					的交集，并放到指定的目标容器
+				返回 目标容器中的复制的最后的元素后的位置的迭代器
+				若 两个源容器任一容器的 元素没有排序，则结果可能与预期的不同，
+				因此 两个源容器都必须先进行排序，
+					结果只包含 相同元素的唯一值， 不会有重复的相同元素
+			d.	set_difference(src1_begin,src1_end,src2_begin,src2_end,
+						des_begin,compare_func)							   
+			取 	第一个和第二个参数指定的范围 中与
+					第三个和第四个参数指定的范围 内的元素不同的元素
+					并放到指定的目标容器
+				返回 目标容器中的复制的最后的元素后的位置的迭代器
+				若 两个源容器任一容器的 元素没有排序，则结果可能与 预期的不同，
+				因此 两个源容器都必须先进行排序，
+				
+				若 第一个和第二个参数指定的范围 中有重复相同的元素 
+				与 第三个和第四个参数指定的范围 的元素相同，
+				则也会将重复的元素 放到 目标容器，
+				即 set_difference() 获取到的元素个数  加上
+					set_intersection() 获取的交集的元素 个数 
+					为 第一个和第二个参数指定的容器全部元素个数，
+				auto des_end =set_difference(int_list.begin(),int_list.end(),
+                                 int_list2.begin(),int_list2.end(),
+                                 des_vec.begin()
+                                 );
+				目标容器中 只会保存 第一个和第二个参数指定的范围 中的不同元素，
+				要获取 第三个和第四个参数指定的范围 中不同元素 ，则需将参数顺序调换
+			
+			e.	set_symmetric_difference(src1_begin,src1_end,src2_begin,src2_end,
+						des_begin,compare_func)	
+					两个源容器都必须先进行排序,	否则 结果可能与 预期的不同，
+					获取 将 set_difference()  获取的 第一个和第二个参数 指定的容器与交集不同的元素
+						和 set_difference() 获取的第三个和第四个参数指定的容器与交集不同的元素
+						合并的结果
+					即 结果容器中 的元素个数 + set_intersection() 获取的交集的元素 个数 * 2 
+						为 两个源容器 的全部元素的个数
+  
+ 
+ 
+
+  
+  
 
