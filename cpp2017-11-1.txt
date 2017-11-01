@@ -1,0 +1,225 @@
+1. C++11 中 字符串和数值类型转换：
+	to_string() 可以将 int long float double 等数值类型转为 string
+	
+	int stoi(const string &,size_t *index=0,int base=10);
+	long stol(const string &,size_t *index=0,int base=10);
+	unsinged long stoul(const string &,size_t *index=0,int base=10);
+	long long  stoll(const string &,size_t *index=0,int base=10);
+	unsinged long long stoull(const string &,size_t *index=0,int base=10);
+	float stof(const string &,size_t *index=0);
+	double stod(const string &,size_t *index=0);
+	long double stold(const string &,size_t *index=0);
+	说明：
+		a. 当参数 字符串中包含非数值字符时，从字符串开头进行转换，直到第一个非数值字符
+				并将该非数值字符的索引赋值到传入的 index 地址中
+		b. 当 字符串中为 负数数值时，若转为 unsinged long 等数值时，会返回一个很大的正数
+		c. 如果转换的值超过返回类型的范围，则抛出 out_of_range 异常
+		d. size_t * 参数传入的参数 必须为 size_t *, 而不能为 int *等类型	
+2.C++11 中原始字符串
+	string 类型常量不支持换行：
+		string s="Line 1
+			line 2 \t (and)
+		end";
+		报错， 可以使用\ 连接换行，但定义的常量中没有换行符
+	可以 在字符串常量前 使用R前缀，并在使用()括主常量，
+	还可以添加前后分界符，作为结束判断：
+		str=R"(Line1
+				line "2" \t (and)
+				end)";
+		其中 \t "" 换行符 都将按原字符保存，而不会进行转义		
+		但若 字符常量中 包含)" 则会把)" 作为结束，而报错，因此需添加分界符，如~		
+		  str=R"~(Line1
+				line "2" \t (and)"
+				end)~";
+3.C++11 中正则表达式：
+		位于 regex 头文件，
+		在g++ 4.9前，不支持 regex,在编译后 运行时，
+			会抛出regex_error异常
+	(1)初始化 regex 对象
+		默认下 正则表达式 使用 ECMAScript 语法，
+		没有//开头和结束分隔符， 模式中的\ 需要进行两次转义
+		a. 初始化形式：
+			 string pattern="^a\\w+$";
+			  regex first; //默认为空
+			  regex second=first;
+			  //传入 模式字符串，也可以是 char*
+			  //或者 字符串区间范围迭代器
+			  regex third(pattern);
+			  regex third(pattern.begin(),pattern.end());
+		b.传入 额外参数：
+			 选项参数常量 位于 std::regex_constants 命名空间
+			主要的参数：
+				icace 默认为区分大小写，传入 该参数表示不区分大小写
+				指定 正则表达式 语法：
+					ECMAScript（默认）	basic extended awk grep egrep
+				regex seventh(pattern,ECMAScript | icase);
+
+				icase 不会修改 元字符中的大小写匹配	,因此
+					regex ninth("^[0-9A-Z]+$",ECMAScript | icase);
+					不会匹配到 有小写字符的字符串
+		c. 重新分配模式：
+				assign()
+				//在没有引入 std::regex_constants 命名空间时，则使用regex::限定符
+				first.assign("^a\\w+$",regex::icase);
+				first.assign(third);
+				//不支持该形式
+				//first.assign(third,regex::icase);
+	(2)regex_match():
+			是对目标字符串进行全匹配，而不是部分进行匹配
+				即 相当于 模式前后自动添加了^ $  
+		 当目标字符串 完全匹配时 返回 true,否则返回false
+			if(regex_match(s,first))
+			{
+			  cout << "first match\n";
+			}
+		还可以获取匹配到的结果：
+			先定义 cmatch 或smatch 类型对象用于保存匹配结果
+				其中 
+					typedef match_results<const char*> cmatch;
+					typedef match_results<string::const_iterator> smatch;
+				即 为match_results<T> 的不同 模板参数类型 的类别名
+			当匹配成功时，可以通过 operator[] 获取匹配的子模式，
+				其中 0为全匹配的结果，在 regex_match()即为目标字符串
+					1为子模式1 匹配的结果 ....
+					
+					smatch sm;
+			
+					//支持 最短匹配格式, 可以匹配到K M G
+					regex re(".*?(\\d+)/(k|m|g).*",regex::icase);
+
+					string s1="this is a size of file 28/M and 463/M, 2.1/G, 65.4/kor tke3G 5/Ger54/Kopje";
+			
+					if(regex_match(s1,sm,re))
+					{
+						cout << "string object with " << sm.size() << "matches\n";
+						for(int i=0; i<sm.size(); i++)
+						{
+							cout << i+1 << "match: " << sm[i] <<endl;
+						}
+						
+					}
+				说明：	
+					a. 匹配的结果 match_results<T> 的 size()为匹配到结果中的子模式的个数+1， 
+						而不是 总匹配到的个数，regex_match()只可能为匹配到1个
+					b.由于 regex_match()为全匹配，因此要对部分进行匹配，则需添加.*? .*前后任意字符标识
+					c.支持 最短匹配格式, 且 regex::icase 对(k|m|g) 字符有效
+						
+	(3) match_results<T> 方法：
+			对于 使用(?:) 开头的分组，不会被捕捉到 子模式中
+			regex re2("(\\d{4})/(?:0?[1-9]|1[0-2])/(?:0?[1-9]|[1-2][0-9]|3[0-1])");	
+			string date="2017/11/01";
+			smatch sm2;
+			regex_match(date,sm2,re2);
+			sm2.size();  // 2, 即 子模式只有(\\d{4})
+			a. 可以通过 begin() end() cbegin() cend() 遍历当前匹配的结果 的 子模式的结果
+					迭代器 为指向  sub_match 对象类型
+			b. prefix() 返回  sub_match 对象，保存 匹配到的结果 前的字符串
+					当使用regex_match()匹配时，由于regex_match()全匹配，
+								因此prefix() 始终为 空
+			  suffix() 返回 sub_match 对象，保存 匹配到的结果 后的字符串	
+						当使用regex_match()匹配时，由于regex_match()全匹配，
+						因此suffix() 始终为 空
+			c. position(int n) 获取 指定的子模式 匹配到的结果 在原字符串中的索引值
+				length(int n) 获取 指定的子模式 匹配到的结果 的字符串长度
+				可以通过 position(int n)+length(int n) 获取在参数目标字符串中，匹配的结果后的字符串
+				
+			d. operator[]() str(int) 获取子模式的匹配结果的结果
+				其中 operator[]()返回 sub_match 对象, str()返回字符串类型
+				例：获取全部匹配到的结果：
+					//累加 获取在原字符串的位置
+					size_t total_len =sm.position(2)+sm.length(2);
+					string tmp =s1.substr(total_len);
+					cout << tmp <<endl;
+					
+					while(regex_match(tmp,sm,re))
+					{
+						cout << "Next match #" << count++ << endl;
+							cout << "\tstring object with " << sm.size() << "matches\n";
+								for(int i=0; i<sm.size(); i++)
+								{
+									cout << '\t'<< i+1 << "match: " << sm[i] <<endl;
+								}
+						
+						//累加 获取在原字符串的位置，
+						//由于position() 和length()是以传入的参数字符串为参照，
+						//因此若直接使用该值 在原字符串位置进行截取，可能会造成无限循环
+						total_len+=sm.position(2)+sm.length(2);
+						tmp=s1.substr(total_len);
+						cout << tmp <<endl;
+						
+					}
+	(4)regex_search() 部分匹配，与 regex_match()参数类似，
+				可以多传入额外参数修改正则匹配语法
+			使用 regex_search() 获取全部匹配到的结果：
+			
+			//不需要添加 任意字符前后
+				regex re1("(\\d+)/(k|m|g)",regex::icase);
+				if(regex_search(s1,sm,re1))
+				{
+					cout << "string object with " << sm.size() <<" matches\n";
+					for(smatch::iterator it = sm.begin(); it!=sm.end(); ++it)
+					{
+						cout <<"\t match: " << it->str() <<endl; 
+					}
+					cout << endl;
+					//可以直接使用 suffix()返回的匹配后的字符串进行再次匹配
+					string tmp = sm.suffix();
+					int count =2;
+					while(regex_search(tmp,sm,re1))
+					{
+						cout << "Next match #" << count++ << endl;
+						cout << "string object with " << sm.size() <<" matches\n";
+						//使用 迭代器进行遍历，调用 sub_match 的str()方法获取每个子模式匹配到的结果
+						for(smatch::iterator it = sm.begin(); it!=sm.end(); ++it)
+						{
+							cout <<"\t match: " << it->str() <<endl; 
+						}
+						cout << endl;
+						tmp = sm.suffix();
+						
+					}
+	(5)regex_iterator 迭代器 获取全部匹配到的结果
+			尽量不要使用 以上的循环获取 全部匹配的结果，而是通过regex_iterator 迭代器
+			先 使用默认构造函数创建一个 regex_iterator 对象， 该对象 用作判断遍历结束
+			然后通过 传入目标字符串范围 和匹配模式参数(str_begin,str_end,regex) 
+			创建 regex_iterator 对象，并使用该对象 来遍历，
+			 其中每次迭代  为指向 match_results 对象类型，
+			
+			声明了 以下别名 
+			typedef regex_iterator<const char*> cregex_iterator	
+			typedef regex_iterator<std::string::const_iterator> sregex_iterator	
+		例：		
+			const sregex_iterator send;
+			int num=1;
+			for(sregex_iterator it(s1.begin(),s1.end(),re1); it!=send; ++it)
+			{
+				cout << "Next match #" << num++ << endl;
+					cout << "string object with " << it->size() <<" matches\n";
+					for(int i = 0; i< it->size(); ++i)
+					{
+						//调用 match_results 中的方法
+						cout <<"\t match: " << it->str(i) <<endl; 
+					}
+					cout << endl;
+			}	
+	(6)regex_token_iterator  获取指定子模式中的匹配结果, 默认为 0， 即整体匹配的结果
+		 其中每次迭代  为指向 sub_match 对象类型，
+		 当 为 -1 时 则使用 匹配到的整个结果作为分隔符，将 没有匹配到的字符串 分割，并将结果进行遍历
+			const sregex_token_iterator end;
+			for(sregex_token_iterator it(s1.begin(),s1.end(),re1); it!=end; ++it)
+			{
+				cout << "Next match #" << num++ << endl;
+				cout <<  it->str() <<endl;
+			}		
+		//只获取 第一个子模式 匹配到的字符串
+			for(sregex_token_iterator it(s1.begin(),s1.end(),re1,1); it!=end; ++it)
+				{
+					cout << "Next match #" << num++ << endl;
+					cout <<  *it <<endl;
+				}
+		// 分割字符串		
+		for(sregex_token_iterator it(s1.begin(),s1.end(),re1,-1); it!=end; ++it)
+				{
+					cout << "Next match #" << num++ << endl;
+					cout <<  it->str() <<endl;
+				}			
