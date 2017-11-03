@@ -399,3 +399,126 @@
 				  system_clock::time_point end = system_clock::now();
 				  duration<double> diff = end -start;
 				  cout << duration<double,milli>(diff).count() <<endl;
+6.随机数：
+		random 头文件
+		//创建 一个 随机引擎 适配器
+		mt19937 eng(static_cast<unsigned long>(time(nullptr)));
+		//创建 分布器	
+		uniform_int_distribution<int> dist(1,99);
+		// 生成随机数
+		cout << dist(eng) <<endl;
+		其中：
+			a. 随机引擎 包括：
+				random_device 真实的随机数生成器，通过连接到一个真正生成随机数硬件
+								若没有，则选择一种算法进行模拟 产生伪随机数
+								随机数生成器的质量由随机数的熵决定，当为 伪随机生成器时，则
+									熵为 0.0
+						random_device rnd;
+						//获取熵 0
+						cout << "Entropy: " << rnd.entropy() <<endl;
+						//最小值为 0 最大值： 4294967295
+						cout << "Min Value: " << rnd.min() <<endl;
+						cout << ",Max value: " << rnd.max() <<endl;
+						// 生成随机数，可能为 很大的数，且每次运行时，生成的随机数相同
+						cout <<"Random number: " << rnd() <<endl;	
+				以下为 伪随机数生成器：				
+					linear_congruential_engine 
+					mersenne_twister_engine
+					shuffle_order_engine
+				伪随机数生成器 使用时，需调整多个 数学参数
+				因此 可以使用 预定义的随机数引擎适配器
+			b.随机数引擎适配器
+				  default_random_engine  
+					minstd_rand	
+					minstd_rand0
+					mt19937
+					mt19937_64
+					ranlux24
+					ranlux48
+					knuth_b
+			c.随机数分布：
+					分布 是一个 描述数字 在一个特定范围内分布的 数学公式
+					可以与 伪随机引擎结合定义生成的随机数的分布，
+					从而影响 随机数的生成
+					uniform_int_distribution 均匀分布
+					uniform_real_distribution
+					normal_distribution  正态分布
+			生成的随机数系列：
+			//由于 随机数生成函数 类型未知，因此使用 函数模板
+			template <typename T>
+			void generateRandom(vector<int> & vec, T gen)
+			{
+				generate(vec.begin(),vec.end(),gen);
+			}	
+			其中 随机生成函数 可使用 bind()将 引擎适配器参数绑定到 分布器参数：
+				vector<int> rand_num(10);
+				auto func = bind(dist,eng); //绑定参数
+				
+				generateRandom(rand_num,func);
+7.tuple	元组， 位于 tuple 头文件
+			可以保存多个不同类型元素
+		tuple<int,string,bool> tp1(16,"Test",true);	
+		也可以传入变量，
+		默认为保存 该变量值，可以通过指定 引用类型参数 且调用ref() 或 cref() 封装变量
+				int m=40;
+				string s="Hello";	
+				tuple<int&,string&,bool>tp2(m,ref(s),false);
+					s="llkekj";	
+					m=20;
+				//影响到 保存的值	
+				cout <<get<0>(tp2)<<", " << get<1>(tp2) <<endl;	
+			说明：
+				a. 当 模板参数没有添加& 引用时，或 没有使用 ref()或cref() 时，都会只保存值，
+					而非变量引用
+				b. 对于保存的变量引用，当对元组元素修改时，会影响到该变量值
+					get<0>(tp2)=60;
+					get<1>(tp2)="ppppe";
+		(1) make_tuple() 可以通过该方法将多个变量 封装并返回指定的类型的 tuple
+				其中 当 使用 ref()或 cref()封装 变量时，则会自动将模板参数设置为 引用形式
+				但若 使用显式指定非引用形式 的变量 保存，则会只保存 值
+				tuple<int,string&,bool> tp2= make_tuple(ref(m),ref(s),false);
+				其中 第一个元素 为值保存
+		(2)get<n>() 获取指定索引的值，返回的类型为 保存的值的类型
+		(3) tuple_size<T1,T2...>::value 获取指定的 tuple 模板 保存的元素个数						
+				tuple_size<tuple<int,string,bool> >::value //3
+		(4) tuple_cat()
+				连接任意多个 tuple 对象，返回新的tuple 对象
+				若 参数中的tuple对象中的元素类型 为引用类型，则在结果的tuple对象中，仍为原引用
+				auto tp3=make_tuple(25,"abc",'c',34.76);
+				auto tp4 = tuple_cat(tp1,tp2,tp3);
+		(5)tie() 将一个tuple 对象分解到各个参数中
+				int n1,n2,n3;
+				char c; double d;				
+				string str1,str2,str3;
+				bool b1,b2;
+				tie(n1,str1,b1,n2,str2,b2,n3,str3,c,d)=tp3;
+			对于 tuple对象中类型 为引用类型	的元素，在分解后，仍为原变量的引用，因此修改该变量
+				会影响到 原变量值和tuple 对象中的值
+		(6)支持 > < == != 比较运算：
+				所有元素类型必须支持比较运算，依次比较元素的大小
+
+8. 迭代器适配器 位于 iterator 头文件
+	(1) reverse_iterator 倒序迭代器
+		  倒序遍历容器元素：
+		  vector<string> str_vec(10);
+			vector<string>::reverse_iterator rit;
+			//或者
+			//reverse_iterator<vector<string>::iterator > rit;	
+			for(rit=str_vec.rbegin();rit!=str_vec.rend(); ++rit)
+			{
+				cout <<"position: " << (rit.base() - str_vec.begin()) << ", value: " << *rit <<endl;
+			}
+		说明：
+			a. 在遍历时，使用 自增++ 运算修改 迭代器
+			b.base() 方法 返回 底层的迭代器对象，但指向当前元素的下个元素的位置（正向），
+				因此 以上 position 输出为 10 9 8 7 6 5 4 3 2 1
+				因此若获取正确的位置索引，应 -1
+		 查询最后一个匹配的元素：
+			rit=find(str_vec.rbegin(),str_vec.rend(),s);
+	(2) ostream_iterator 迭代器	：
+			输出流迭代器，构造函数传入 输出流对象 和 每个元素输出后输出的string
+		 ostream_iterator 通过 operator<< 进行输出
+			//调用 copy() 将容器元素输出
+			ostream_iterator<string> out_it(cout,"\n");
+			copy(str_vec.rbegin(),str_vec.rend(),out_it);
+	(3)		
