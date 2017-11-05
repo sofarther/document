@@ -521,4 +521,94 @@
 			//调用 copy() 将容器元素输出
 			ostream_iterator<string> out_it(cout,"\n");
 			copy(str_vec.rbegin(),str_vec.rend(),out_it);
-	(3)		
+	(3)	插入迭代器：
+			copy()算法 只能将元素进行覆盖原元素 复制，因此需要在执行前，对目标容器分配足够的空间
+			可以通过 插入迭代器，将复制的元素进行插入 复制到目标容器，而不需要提前分配大小
+		
+		a.    back_insert_iterator 模板参数容器 必须包含 push_back()方法，调用该方法插入到目标容器末尾
+    			back_insert_iterator<vector<string> > insert_iterator(str_vec1);
+	    		remove_copy_if(str_vec.begin(),str_vec.end(),insert_iterator,tooLong);
+	    	其中：当目标容器中已有元素时，不会覆盖原有元素
+	    b.  front_insert_iterator 容器必须包含 push_front()方法，调用该方法插入到目标容器开头
+    			因此 不能用于 vector
+				list<string> list1;
+				list1.insert(list1.end(),"skfea");
+				list1.insert(list1.end(),"kleee");
+				remove_copy_if(str_vec.begin(),str_vec.end(),front_insert_iterator<list<string> >(list1),tooLong);
+ 			说明： 依次插入到目标容器开头位置，原容器中遍历顺序在后的元素 则插入目标容器在前面
+ 		c.	     insert_iterator 调用 容器的insert(position,element) 方法
+				   因此 在构造函数中，需传入 首次插入的位置, 在执行插入时，会每次修改该位置
+				set<string> set1;
+				set1.insert(set1.end(),"ttt");
+				set1.insert(set1.end(),"yyy");
+				insert_iterator<set<string> > insert_iterator1(set1,++set1.begin());
+				remove_copy_if(str_vec.begin(),str_vec.end(),insert_iterator1,tooLong);
+			说明： 在gcc 5.4.0 中，以上编译 始终报错  insert_iterator<set<string> >
+						expected primary-expression before ‘>’ token
+	(4)移动迭代器： c++11中使用
+			当 元素类型 中定义了 移动构造函数 和移动赋值运算，则可以通过使用
+				make_move_iterator()
+				将迭代器封装为 移动迭代器，因此在复制或其他运算时，会调用 移动构造函数 和移动赋值运算
+				这样 原容器中的元素 将不能再访问
+			    vector<MoveableClass> move_vec2(make_move_iterator(move_vec.begin()),
+                                    make_move_iterator(move_vec.end()));
+9.获取迭代器 类型信息：
+	 
+	iterator_traits<iterator> 中定义 以下成员，保存模板参数 iterator 的类型信息：
+		difference_type	 模板参数 iterator 执行 + -运算 的结果类型
+		value_type	模板参数 iterator 当前指向的元素类型
+		pointer	模板参数 iterator 指向的元素类型 的指针类型
+		reference	模板参数 iterator 指向的元素类型 的 引用类型
+		iterator_category	模板参数 iterator 的分类，返回值为以下类型之一
+								input_iterator_tag
+								output_iterator_tag
+								forward_iterator_tag
+								bidirectional_iterator_tag
+								random_access_iterator_tag
+	template <typename IteratorType>
+	void iteratorTraitsTest(IteratorType it)
+	{
+			//获取迭代器的 类型信息
+			
+		  typedef  iterator_traits<IteratorType> traits;
+
+		  cout << (typeid(typename traits::difference_type)).name() <<endl;
+
+		  cout <<(typeid(typename traits::pointer)).name() <<endl; 
+		  cout << (typeid(typename traits::reference)).name() <<endl; 
+		  cout << (typeid(typename traits::value_type)).name() <<endl; 
+		  cout <<(typeid(typename traits::iterator_category) == typeid(random_access_iterator_tag)) <<endl;
+		 
+	 	  cout <<typeid(typename traits::iterator_category).name() <<endl;
+	  
+	  }
+	  
+	说明	：	a. 对带有模板参数 的类型 使用 typedef 进行定义别名时， 不能添加 typename 
+		       因此只能在 使用 定义的别名时 添加 typename					  
+			b. value_type 获取该迭代器指向的元素的类型
+				可以定义该类型的变量， 需添加 typename 关键字
+		 		 typename  iterator_traits<IteratorType>::value_type temp;
+		  		temp =*it;
+		  		cout << temp <<endl;
+		  	c. 调用该函数：
+		  			  vector<int> vec={3,4,5,4,5,6,5,8};
+		 			iteratorTraitsTest(vec.begin());
+		 		在 iteratorTraitsTest() 中依次输出：
+		 			 l Pi i i  1 St26random_access_iterator_tag		
+10.
+	(1) 类模板 的具体化模板 中的方法 在实现时，不能 添加 template<> 前缀，否则 会视为 函数模板 定义
+	(2)类模板 在定义时的 参数类型中指定 默认参数类型时， 则 在定义方法时 只需添加 参数类型，不能再带有默认参数类型
+	(3)	同一类型的容器 对象属性 可以直接使用 复制构造函数 实现复制，而不需要 手动逐一遍历复制
+	(4) 对于 在类中定义的类型，作为方法的返回值时， 则在方法实现时 需使用 该类的限定符前缀 引用 该定义的类型
+		且 若为 类模板，则需 添加 typename 关键字：
+			template <typename  Key, typename T, typename Compare ,  typename Hash  >
+ 				 typename  hashmap<Key,T,Compare,Hash>::value_type * hashmap<Key,T,Compare,Hash>::find(const key_type & x) const
+ 				 {
+ 				 }
+		 当在类模板中 声明该方法时，若返回值 需要 类模板的类型参数，则也需使用 typename:
+		 	typename list<pair<const Key,T> >::iterator findElement(const key_type & x, size_t & bucket) const;	
+	 (5)当 方法返回的类型 为 元素的指针时， 则
+	 		若返回空，可以返回 nullptr
+	 		若返回某个元素的地址 则，可以对 迭代器 进行的* 和 & 操作：
+	 			return &(*it);  		 			 		
+					
