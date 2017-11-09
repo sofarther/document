@@ -300,15 +300,15 @@ __FILE__ 表示当前文件名， __LINE__ 表示 当前行数
 	(4)	unique() 只能去掉连续重复的元素	
 		remove(元素值) 删除 与 指定的元素值 相等的所有元素
 		erase(position) 删除迭代器指定位置的元素
-		 并返回 该已删除的 位置，但与传入参数不同
-		 该返回值 可通过 * 获取删除的元素值， 可以通过++ 或-- 获取删除的元素的前后位置
+		 并返回 该已删除的 元素的下个元素的位置，与传入参数不同
+		 该返回值 可通过 * 获取删除元素的下个元素的值， 可以通过++ 或-- 获取删除的元素的前后位置
 		 但不能使用 传入的 postion 对象来操作list元素
 		erase(first,last) 删除指定区间的元素
 		
 		auto secIter1 =second.erase(secIter);
     	//返回的位置和传入的参数 不相同
    		 cout <<*secIter1<< (&secIter1 ==&secIter) <<endl;
-     	//移动 删除的位置，否则会报错
+     	
 		secIter1++;
 		//secIter++;
 		auto secIter2 =--(second.end());

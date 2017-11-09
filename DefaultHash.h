@@ -7,8 +7,8 @@
 #include <utility>
 #include <list>
 #include <vector>
-
-
+#include <initializer_list>
+#include <iterator>
 
 using namespace std;
 template <typename T>
@@ -101,7 +101,22 @@ typedef pair<const Key,T>&  reference;  //元素引用类型
 typedef const pair<const Key,T>& const_reference; //元素const 引用类型
 typedef size_t size_type; //元素个数 类型
 typedef ptrdiff_t difference_type; //容器的两个 iterator 差值类型
-
+	//实现 关联容器
+	typedef Compare key_compare;
+	//值比较器
+	class value_compare: public binary_function<value_type,value_type,bool>
+	{
+		friend class hashmap<Key,T,Compare,Hash>;
+		public:
+		bool operator()(const value_type & val1, const value_type & val2) const
+		{
+			return comp(val1.first,val2.first);
+		}
+		protected:
+		Compare comp;
+		value_compare(Compare c):comp(c){}
+	};
+		
     explicit hashmap(const Compare & comp =Compare(),
                      const Hash& hash=Hash()) throw(invalid_argument);
     ~hashmap();
@@ -109,9 +124,10 @@ typedef ptrdiff_t difference_type; //容器的两个 iterator 差值类型
     hashmap( hashmap<Key,T,Compare,Hash> && src);
     hashmap<Key,T,Compare,Hash>& operator=(const hashmap<Key,T,Compare,Hash> & rhs ) ;
     hashmap<Key,T,Compare,Hash>& operator=(hashmap<Key,T,Compare,Hash> && rhs ) ;
-    void insert(const value_type & x);
-    void erase(const key_type & x);
-    value_type * find(const key_type & x) const;
+	//修改以下方法为标准 方法	
+    //void insert(const value_type & x);
+    //void erase(const key_type & x);
+    //value_type * find(const key_type & x) const;
     T & operator[](const key_type & x);
 // stl 标准方法
 bool empty() const;
@@ -119,6 +135,17 @@ size_type size() const;
 size_type max_size() const;
 //交换 mElems mSize mComp mHash 成员
 void swap(hashmap<Key,T,Compare,Hash>& hashIn);
+//关联容器 方法
+template <typename InputIterator>
+hashmap(InputIterator first,InputIterator last,
+		const Compare & comp=Compare(), const Hash& hash=Hash()
+		)throw(invalid_argument);
+//C++11 
+hashmap(initializer_list<value_type> il,const Compare & comp=Compare(),
+		const Hash & hash=Hash()
+		)throw(invalid_argument);
+hashmap<Key,T,Compare,Hash> & operator=(initializer_list<value_type> il)
+		throw(invalid_argument); 
 bool operator==(const hashmap<Key,T,Compare,Hash>& hashIn);
 bool operator!=(const hashmap<Key,T,Compare,Hash>& hashIn);
 bool operator<(const hashmap<Key,T,Compare,Hash>& hashIn);
@@ -134,6 +161,28 @@ const_iterator begin() const;
 const_iterator end() const;
 const_iterator cbegin() const;
 const_iterator cend() const;
+
+//insert()
+pair<iterator,bool> insert(const value_type & x);
+iterator insert(iterator position,const value_type & x);
+//跨容器插入
+template <typename InputIterator>
+void insert(InputIterator first,InputIterator last);
+void insert(initializer_list<value_type> il);
+//c++11 emplace()
+pair<iterator,bool> emplace(value_type && x);
+iterator emplace_hint(iterator hint,value_type && x);
+//元素删除
+void erase(iterator position);
+size_type erase(const key_type & x);
+void erase(iterator first,iterator last);
+void clear();
+//stl 标准方法
+key_compare key_comp() const;
+value_compare value_comp() const;
+iterator find(const key_type & x);
+const_iterator find(const key_type & x) const;
+size_type count(const key_type & x) const;
 protected:
     typedef list<value_type> ListType;
     vector<ListType> * mElems;
@@ -283,6 +332,7 @@ typename list<pair<const Key,T> >::iterator hashmap<Key,T,Compare,Hash>::findEle
         return (*mElems)[index].end();
 }
 //插入元素， 不能插入相同元素
+/*
 template <typename  Key, typename T, typename Compare,typename Hash >
 void hashmap<Key,T,Compare,Hash>::insert(const value_type & x) 
 {
@@ -341,6 +391,7 @@ T & hashmap<Key,T,Compare,Hash>::operator[](const key_type & x)
     }
     return value->second;
 }
+*/
 template <typename  Key, typename T, typename Compare,  typename Hash >
     bool hashmap<Key,T,Compare,Hash>::empty() const
 {
@@ -508,5 +559,218 @@ typename hashmap<Key,T,Compare,Hash>::const_iterator hashmap<Key,T,Compare,Hash>
     return end();
 }
 
+//关联容器 方法
+template <typename  Key, typename T, typename Compare,  typename Hash >
+template <typename InputIterator>
+hashmap<Key,T,Compare,Hash>::hashmap(InputIterator first,InputIterator last,
+		const Compare & comp, const Hash& hash
+		)throw(invalid_argument)
+		:mSize(0),mComp(comp), mHash(hash)
+		{
+			if(mHash.getBucketNum() <=0)
+			{
+				throw invalid_argument("Number of buckets must >0");
+			}
+			mElems = new vector<ListType>(mHash.getBucketNum());
+			insert(first,last);
+		}
+//C++11 
+template <typename  Key, typename T, typename Compare,  typename Hash >
+hashmap<Key,T,Compare,Hash>::hashmap(initializer_list<value_type> il,const Compare & comp,
+		const Hash & hash
+		)throw(invalid_argument)
+		:mSize(0),mComp(comp), mHash(hash)
+		{
+			if(mHash.getBucketNum() <=0)
+			{
+				throw invalid_argument("Number of buckets must >0");
+			}
+			mElems = new vector<ListType>(mHash.getBucketNum());
+			insert(il.begin(),il.end());
+		}
+		template <typename  Key, typename T, typename Compare,  typename Hash >
+  hashmap<Key,T,Compare,Hash> & hashmap<Key,T,Compare,Hash>::operator=(initializer_list<value_type> il)
+		throw(invalid_argument)
+		{
+			clear();
+			insert(il.begin(),il.end());
+			return *this;
+		}	
+//insert()
+template <typename  Key, typename T, typename Compare,  typename Hash >
+pair<typename hashmap<Key,T,Compare,Hash>::iterator,bool> hashmap<Key,T,Compare,Hash>::insert(const value_type & x)
+{
+	size_t bucket;
+    auto it = findElement(x.first,bucket);
+    if(it != (*mElems)[bucket].end())
+    {
+        return  make_pair(HashIterator<Key,T,Compare,Hash>(bucket,it,this),false);
+        
+        
+    }
+    //执行插入操作
+    mSize++;
+    //vector 中的元素已在创建时初始化
+	// list insert() 方法只 返回插入的元素的迭代器，而不是 pair 类型
+    auto res= (*mElems)[bucket].insert(it,x);
+	return make_pair(HashIterator<Key,T,Compare,Hash>(bucket,res,this),true);
+	
+    
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >
+typename hashmap<Key,T,Compare,Hash>::iterator hashmap<Key,T,Compare,Hash>::insert(iterator position,const value_type & x)
+{
+	//忽略 position 
+	return  insert(x).first;
+}
+//跨容器插入
+template <typename  Key, typename T, typename Compare,  typename Hash >
+template <typename InputIterator>
+void hashmap<Key,T,Compare,Hash>::insert(InputIterator first,InputIterator last)
+{
+	insert_iterator<hashmap<Key,T,Compare,Hash> > insert_begin(*this,begin());
+	//调用 insert() 方法
+	copy(first,last,insert_begin);
+	
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >
+void hashmap<Key,T,Compare,Hash>::insert(initializer_list<value_type> il)
+{
+	//调用 insert(InputIterator,InputIterator) 重载形式
+	insert(il.begin(),il.end());
+}
+
+//c++11 emplace()
+template <typename  Key, typename T, typename Compare,  typename Hash >
+pair<typename hashmap<Key,T,Compare,Hash>::iterator,bool> hashmap<Key,T,Compare,Hash>::emplace(value_type && x)
+{
+	size_t bucket;
+    auto it = findElement(x.first,bucket);
+	if(it !=(*mElems)[bucket].end())
+	{
+		return make_pair(HashIterator<Key,T,Compare,Hash>(bucket,it,this),false);
+	}
+	++mSize;
+	auto res =(*mElems)[bucket].emplace(x);
+	return make_pair(HashIterator<Key,T,Compare,Hash>(bucket,res.first,this),res.second);
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >
+typename hashmap<Key,T,Compare,Hash>::iterator hashmap<Key,T,Compare,Hash>::emplace_hint(typename hashmap<Key,T,Compare,Hash>::iterator hint,value_type && x)
+{
+	//forward<T>(x)  当参数变量为右值引用时，则仍返回该右值引用类型， 若直接将 变量 传入到函数中，则会视为 左值
+	//因此可以通过 该函数保持 右值引用的类型
+	emplace(forward<value_type>(x)); //忽略 hint 参数
+}
+//元素删除
+template <typename  Key, typename T, typename Compare,  typename Hash >
+void hashmap<Key,T,Compare,Hash>::erase(typename hashmap<Key,T,Compare,Hash>::iterator position)
+{
+	((*mElems)[position.mBucket]).erase(position.mIt);
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >
+typename hashmap<Key,T,Compare,Hash>::size_type hashmap<Key,T,Compare,Hash>::erase(const key_type & x)
+{
+	size_t bucket;
+    auto it = findElement(x,bucket);
+	if(it == (*mElems)[bucket].end())
+	{
+		return 0;
+	}
+	mSize--;
+	(*mElems)[bucket].erase(it);
+	return 1;
+	
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >
+void hashmap<Key,T,Compare,Hash>::erase(typename hashmap<Key,T,Compare,Hash>::iterator first,
+			typename hashmap<Key,T,Compare,Hash>::iterator last)
+			{
+				/*
+				(*mElems)[first.mBucket].erase(first.mIt,(*mElems)[first.mBucket].end());
+				for(int i=first.mBucket+1;i<last.mBucket; ++i)
+				{
+					(*mElems)[i].clear();
+				}
+				for(auto it= (*mElems)[last.mBucket].begin(); it!=last.mIt;++it)
+				{
+					
+				}
+				*/
+				typename hashmap<Key,T,Compare,Hash>::iterator cur, next;
+				for(next=first; next!=last;)
+				{
+					//在删除前 定位到下个元素位置
+					cur=next++;
+					erase(cur);
+				}
+			}
+template <typename  Key, typename T, typename Compare,  typename Hash >			
+void hashmap<Key,T,Compare,Hash>::clear()
+{
+	for_each(mElems->begin(),mElems->end(),[](ListType& e){e.clear();});
+	mSize=0;
+}	
+//stl 标准方法
+template <typename  Key, typename T, typename Compare,  typename Hash >	
+typename hashmap<Key,T,Compare,Hash>::key_compare hashmap<Key,T,Compare,Hash>::key_comp() const
+{
+	return mComp;
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >	
+typename hashmap<Key,T,Compare,Hash>::value_compare hashmap<Key,T,Compare,Hash>::value_comp() const
+{
+	return value_compare(mComp);
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >	
+typename hashmap<Key,T,Compare,Hash>::iterator hashmap<Key,T,Compare,Hash>::find(const key_type & x)
+{
+	size_t bucket;
+    auto it = findElement(x,bucket);
+	if(it == (*mElems)[bucket].end())
+	{
+		return end();
+	}
+   return  HashIterator<Key,T,Compare,Hash>(bucket,it,this);
+        
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >	
+typename hashmap<Key,T,Compare,Hash>::const_iterator hashmap<Key,T,Compare,Hash>::find(const key_type & x) const
+{
+	return find(x);
+}
+template <typename  Key, typename T, typename Compare,  typename Hash >	
+typename hashmap<Key,T,Compare,Hash>::size_type hashmap<Key,T,Compare,Hash>::count(const key_type & x) const
+{
+	/*
+	size_t bucket;
+    auto it = findElement(x,bucket);
+	if(it == (*mElems)[bucket].end())
+	{
+		return 0;
+	}
+	size_t count =0;
+	for_each((*mElems)[bucket].begin(),(*mElems)[bucket].end(),[&x,&count](ListType& e){if(e.first ==x){count++;}});
+	return count;
+	*/
+	//不能插入相同元素 因此返回 0 或1
+	if(find(x) ==end())
+	{
+		return 0;
+	}
+	else{return 1;}
+}	
+template <typename  Key, typename T, typename Compare,  typename Hash >
+T & hashmap<Key,T,Compare,Hash>::operator[](const key_type & x)
+{
+	/*
+	auto it=find(x);
+	if(it==end())
+	{
+		it =insert(it,make_pair(x,T()));
+	}
+	return it->second;
+	*/
+	return ((insert(make_pair(x,T()))).first)->second;
+}
 #include "HashIterator.h"
 #endif

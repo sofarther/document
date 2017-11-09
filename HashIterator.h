@@ -36,6 +36,8 @@ protected:
     //辅助方法
     void increment();
     void decrement();
+	friend class hashmap<Key,T,Compare,Hash>;
+
 };
 template<typename Key,typename T, typename Compare, typename Hash>
     HashIterator<Key,T,Compare,Hash>::HashIterator()
@@ -56,6 +58,8 @@ template<typename Key,typename T, typename Compare, typename Hash>
 {
     return *mIt;
 }
+//重载 ->() 方法 需返回 一个对象的指针类型
+//在 使用 -> 运算时，会将返回的 对象的指针 再次调用 -> 运算
 template<typename Key,typename T, typename Compare, typename Hash>
     pair<const Key,T>* HashIterator<Key,T,Compare,Hash>::operator->() const
 {

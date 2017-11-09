@@ -524,7 +524,8 @@
 	(3)	插入迭代器：
 			copy()算法 只能将元素进行覆盖原元素 复制，因此需要在执行前，对目标容器分配足够的空间
 			可以通过 插入迭代器，将复制的元素进行插入 复制到目标容器，而不需要提前分配大小
-		
+			因此 可以通过 插入迭代器 和copy()方法 来循环 调用 insert() 或 push_back() push_front() 方法
+				而不需要显式 循环遍历调用
 		a.    back_insert_iterator 模板参数容器 必须包含 push_back()方法，调用该方法插入到目标容器末尾
     			back_insert_iterator<vector<string> > insert_iterator(str_vec1);
 	    		remove_copy_if(str_vec.begin(),str_vec.end(),insert_iterator,tooLong);
@@ -545,6 +546,14 @@
 				remove_copy_if(str_vec.begin(),str_vec.end(),insert_iterator1,tooLong);
 			说明： 在gcc 5.4.0 中，以上编译 始终报错  insert_iterator<set<string> >
 						expected primary-expression before ‘>’ token
+				   在 gcc 6.3.0 中	可以执行，由于 set 会对元素进行排序，因此输出时的元素是按照排序的顺序
+					使用 list 容器
+					list<string> list1;
+					list1.insert(list1.end(),"aaaa");
+					list1.push_back("tdk");
+					insert_iterator<list<string> > insert_iterator2(list1,++list1.begin());
+					remove_copy_if(str_vec.begin(),str_vec.end(),insert_iterator2,tooLong);
+				插入到 开始的指定的迭代器之前，按照原容器中遍历顺序 进行插入	
 	(4)移动迭代器： c++11中使用
 			当 元素类型 中定义了 移动构造函数 和移动赋值运算，则可以通过使用
 				make_move_iterator()
@@ -600,15 +609,50 @@
 	(2)类模板 在定义时的 参数类型中指定 默认参数类型时， 则 在定义方法时 只需添加 参数类型，不能再带有默认参数类型
 	(3)	同一类型的容器 对象属性 可以直接使用 复制构造函数 实现复制，而不需要 手动逐一遍历复制
 	(4) 对于 在类中定义的类型，作为方法的返回值时， 则在方法实现时 需使用 该类的限定符前缀 引用 该定义的类型
-		且 若为 类模板，则需 添加 typename 关键字：
-			template <typename  Key, typename T, typename Compare ,  typename Hash  >
- 				 typename  hashmap<Key,T,Compare,Hash>::value_type * hashmap<Key,T,Compare,Hash>::find(const key_type & x) const
- 				 {
- 				 }
-		 当在类模板中 声明该方法时，若返回值 需要 类模板的类型参数，则也需使用 typename:
-		 	typename list<pair<const Key,T> >::iterator findElement(const key_type & x, size_t & bucket) const;	
+			且 若为 类模板，则需 添加 typename 关键字：
+				template <typename  Key, typename T, typename Compare ,  typename Hash  >
+					 typename  hashmap<Key,T,Compare,Hash>::value_type * hashmap<Key,T,Compare,Hash>::find(const key_type & x) const
+					 {
+					 }
+			 当在类模板中 声明该方法时，若返回值 需要 类模板的类型参数，则也需使用 typename:
+				typename list<pair<const Key,T> >::iterator findElement(const key_type & x, size_t & bucket) const;	
+		 
+				当 类模板参数位于 其他模板参数中，则 typename 应在 该模板参数列表中
+				pair<typename  hashmap<Key,T,Compare,Hash>::iterator,bool> hashmap<Key,T,Compare,Hash>::insert(const value_type & x)
+		而在参数列表中 的 类中定义的类型， 则可以直接使用定义的类型，不需要 使用 类的限定符	
 	 (5)当 方法返回的类型 为 元素的指针时， 则
 	 		若返回空，可以返回 nullptr
 	 		若返回某个元素的地址 则，可以对 迭代器 进行的* 和 & 操作：
 	 			return &(*it);  		 			 		
+	(6)类模板中 定义 函数模板， 实现该函数模板时形式：
+		使用 两层 template<>
+		template <typename  Key, typename T, typename Compare,  typename Hash >
+		template <typename InputIterator>
+		hashmap<Key,T,Compare,Hash>::hashmap(InputIterator first,InputIterator last,
+				const Compare & comp, const Hash& hash
+				)throw(invalid_argument)
+				{
 					
+				}
+	(7) forward<T>(x) 位于 utility 头文件
+		当参数变量为右值引用时，则仍返回该右值引用类型， 若直接将 变量 传入到函数中，则会视为 左值
+		因此可以通过 该函数保持 右值引用的类型
+		foo(int && x){
+			bar(forward<int>(x)); //调用 bar(int &&) 形式
+		}	
+	(8) 当遍历删除元素时，不能 直接使用
+			for(auto it= begin; it!=end; ++it){list.erase(it);}
+			由于 在删除后原it 指定的位置 再执行++ 运算时，将不会再定位到下个元素，
+			因此 应先定位到下个元素后， 再执行删除操作
+			
+			auto cur =begin;
+			for(auto next = begin; next!=end;)
+			{
+				cur =next++;
+				list.erase(cur);
+			}
+	(9)emplace(position,value) emplace_back(value) emplace_front(value)	
+		c++11 中 添加的 插入元素的方法， 
+		push_back() push_front() 和 insert() 方法 会调用 元素的复制构造函数或移动函数
+		来插入元素， 而 emplace() 方法 只调用 构造函数，支持传入的参数为 元素的构造函数的参数列表
+		然后直接使用传入的参数 构造元素对象
