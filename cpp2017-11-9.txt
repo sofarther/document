@@ -1,0 +1,116 @@
+1.重载运算符：
+	(1)一元运算符 -
+		不会修改原对象值，因此 需返回一个新的对象
+		class Test{
+			public:
+				const Test operator-() const
+				{
+					Test t(*this);
+					t.set(-mValue);
+					return t;
+				}
+		};
+	(2)一元前置++ -- 后置++ --
+		后置 ++ 和-- 返回值 和原值不同，因此不能返回 引用类型
+		Test & operator++(); //前置
+		Test operator++(int); //后置
+	(3)-> 运算符：
+		重载 ->() 方法 需返回 一个对象的指针类型
+		在 使用 -> 运算时，会将返回的 对象的指针 再次调用 -> 运算
+		t->set(29);
+		C++ 解析为：
+		(t.operator->())->set(29)
+	(4)对象在 逻辑运算 中 转化：
+		默认下 对象不能直接作为 逻辑表达式使用：
+			Test t;
+			if(t){} //报错
+		可以通过 实现 operator void*() 转化运算， 在对象作为逻辑表达式时会调用该运算方法
+		不要 定义 operator bool() 类型转化运算，因为 若存在 bool 类型转化时，
+		则在 条件运算中 使用对象时，则可能会由于
+			操作数为 bool 类型可以进行转化的类型(如 int), 而调用对象的bool类型转化，
+			再进行比较，而导致未预期的结果
+		若操作数 不为bool 类型可以进行转化的类型，则会调用对象重载的 条件表达式
+	(5) 重载 new delete 运算符：
+		a.	默认下 全局运算 new delete  new[] delete[] 及其重载形式
+			也可以在类中重载 该运算，将调用该重载的运算
+			Test * pt = new Test();
+			其中 new Test()  先 调用 operator new() 为 Test 对象分配内存，然后再调用Test构造函数创建对象
+			delete * pt;
+			先 调用 pt 指定的 Test对象 的析构函数，然后调用 operator delete 再释放  内存
+		b. 重载形式：
+			class MemoryTest
+			{
+			public:
+			  MemoryTest(){}
+			  virtual ~MemoryTest(){}
+			  void * operator new(std::size_t size);
+			  void   operator delete(void * ptr) noexcept;
+			  void * operator new[](std::size_t size);
+			  void   operator delete[](void * ptr) noexcept;
+			  void * operator new(std::size_t size, const std::nothrow_t&) noexcept;
+			  void   operator delete(void * ptr,const std::nothrow_t&) noexcept;
+			  void * operator new[](std::size_t size, const std::nothrow_t&) noexcept;
+			  void   operator delete[](void * ptr, const std::nothrow_t&) noexcept;
+			  void * operator new(std::size_t size, void* p);
+			  void   operator delete(void * ptr, void *p) noexcept;
+			  void * operator new[](std::size_t size, void* p);
+			  void   operator delete[](void * ptr, void *p) noexcept;
+			};
+			其中
+				 new(size_t) 对应 new 表达式 new[](size_t) 对应 new[] 表达式
+				  new(size_t size const nothrow_t&) 对应 new (nothrow) Test(); 表达式
+				  new(size_t void* p) 对应 new(ptr) Test(); 即指定开始的地址
+				 其中 size_t 指定要分配的内存的大小 
+				delete 表达式 只会 调用 delete(size_t) 和 delete[](size_t)两种形式	
+					即 当显式 调用delete 来释放内存时，只会调用以上两种形式
+				其他的4种形式 在调用 operator new后再调用 构造函数抛出异常时才会调用
+						但需 对 new 表达式进行异常捕捉，否则会质监局退出
+						 try{
+								MemoryTest *mem;
+								//当构造函数中抛出异常时，调用对应的 operator delete() 形式  
+								// MemoryTest *mem = new MemoryTest();
+								//delete mem;
+
+								// mem = new MemoryTest[10];
+								//delete [] mem;
+								//mem = new (nothrow) MemoryTest();
+								//delete mem;
+							  mem =  new(nothrow) MemoryTest[10];
+
+							  delete [] mem;
+							  mem =  new(5) MemoryTest();
+							  delete mem;
+
+							  }catch(const exception &)
+								{
+
+								}
+ 
+			当提供 void* operator new(parms) 重载时，必须同时提供 void operator delete(void*, parms)	
+				对于 指定开始的地址 new 由于并不实际分配内存，可不重载相应的 operator delete
+			在实现时 可以通过调用 全局对应的运算 实现
+				void * MemoryTest::operator new(std::size_t size)
+				{
+				  std::cout << "operator new size:" <<size << std::endl;
+				  //call ::operator new()
+				  return ::operator new(size);
+				}
+				
+				void  MemoryTest::operator delete(void * ptr) noexcept
+				{
+				  std::cout << "operator delete" <<std::endl;
+				  return ::operator delete(ptr);
+				}
+
+		c.可以 重载 额外参数的形式：
+			  void * operator new(std::size_t size, int extra);
+			  void   operator delete(void * ptr, int extra) noexcept;
+			调用形式
+				new(5) Test();
+		d. delete 还可以重载以下形式 
+				void   operator delete(void * ptr,size_t size) noexcept;
+			其中 size 指定释放的内存的大小
+				当既有 operator delete(void * ptr) 和 operator delete(void * ptr,size_t)
+				时，则会只调用 前者
+				全局 delete 运算中 没有该形式， 
+				因此在实现时，只能调用全局的 operator delete(void * ptr)形式	
