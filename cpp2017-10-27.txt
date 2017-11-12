@@ -688,7 +688,9 @@
 					的所有元素 参数中指定的范围的结束位置后（不是容器的end()返回的结束位置），
 				并返回 指向已移动的元素的开始位置的 迭代器
 			vector<string>::iterator access_end = remove_if(str_vec.begin(),str_vec.end(),[](const string & str){return str.empty();});
-		c. remove_copy(src_begin,src_end,des_begin,value)  将移除掉的元素后 的结果的所有元素 复制到指定的目标容器
+		c. remove_copy(src_begin,src_end,des_begin,value) 
+			 将移除掉的元素后 的结果的所有元素 复制到指定的目标容器
+			 	而不是 将要移除的元素 复制到目标容器
 						源容器的元素不变
 					返回 目标容器中的复制的最后的元素后的位置的迭代器
 		d. remove_copy_if(src_begin,src_end,des_begin,functional) 

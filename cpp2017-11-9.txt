@@ -113,4 +113,102 @@
 				当既有 operator delete(void * ptr) 和 operator delete(void * ptr,size_t)
 				时，则会只调用 前者
 				全局 delete 运算中 没有该形式， 
-				因此在实现时，只能调用全局的 operator delete(void * ptr)形式	
+				因此在实现时，只能调用全局的 operator delete(void * ptr)形式
+				
+2.类模板：
+	(1)可以在头文件中定义类模板， 然后 在其他文件中实现类方法，但该文件必须 在头文件中 通过 #include 引入
+	但不能将 实现文件单独添加到项目或 在编译时指定该 实现文件
+	只能 通过 #include 包含到一个头文件， 且 该实现文件后缀可任意，如inl
+	(2)	a.选择性实例化：
+			编译器 只会为 某个调用的类方法生成代码，而没有调用的方法，则不会生成代码
+		b.当在模板中调用 具体类型的方法或运算时，若该类型不支持该方法或运算，则会编译错误
+			但 若该类型不支持某个方法或运算，而在模板中没有调用 该方法或运算，则也不会报错	
+	(3)非类型参数： 在模板中传入 具体类型值 参数，而不是类型参数
+			只能为 整数类型（char int long ...） 枚举、 指针、 引用
+		在使用 该类模板时，非类型参数 只能为常量，不能传入变量
+		当传入不同的 类型值时，虽然 类型参数相同，但实例化的对象仍为不同类型的对象
+	(4)不同类型 模板实例化 对象 的复制 赋值：
+			对于有的不同类型实例化 间可以进行复制和赋值，则需添加 一个成员模板方法实现：
+			如 Test<int> 和 Test<double>
+				在定义了 Test(const Test<T> &) 和 Test<T>& operator=(const Test<T>&)
+				仍不能直接对  Test<int> 和 Test<double> 对象相互复制和赋值
+			可以定义：
+				template<typename T>
+				tempate<typename E>
+				Test<T>::Test(const Test<E> &);
+				
+				template<typename T>
+				tempate<typename E>
+				Test<T>& Test<T>::operator(const Test<E> &);
+			来实现不同类型实例化模板 对象之间的复制和赋值
+		说明：
+			a.成员模板方法 不会覆盖 原非模板成员方法，因此需保存两个版本方法
+			b.template<typename T>
+				tempate<typename E>		
+		 	不能合并为 template<typename T, typename E>	
+		    c. 也可以应用到 非类型参数 模板类	
+	(5)特例化：
+		在特例化一个模板时，必须 重写整个模板类的方法实现，
+		在实现类方法时，不能在方法名前指定 template<>， 只需使用 Test<char *>:: 来引用方法名
+	(6)子模板：
+			template <typename T>
+			class Sub :public Test<T>{}
+		在引用父模板中的成员时，最好通过this 来引用，而不是直接调用
+	(7) C++11 中 模板别名 和方法返回类型：
+			可以通过 using otherName = Test<T>; 来为模板起别名
+			且支持 部分参数具体化形式（在 C++11前不支持）
+		 返回类型通过以下形式：
+		 	template<typename T1, typename T2>
+		 	auto func(const T1 t1, const T2 t2) ->decltype(t1+t2)
+		 	{
+		 		return t1+t2;
+		 	}		
+3. 模板 中参数类型： 
+		参数类型、 非参数类型、 模板参数模板
+		(1)模板参数模板：
+			形式： template<typename T1, typename T2, template<typename E, typename E2> class T3 >
+				若 模板参数模板中的模板参数指定了 默认参数类型，则在实现该类模板时，仍需指定该默认参数类型，不能省略
+					在引用 模板参数模板类型时，只需 使用 T3 即可，不需要添加该类模板的 模板参数 
+			例：	
+				template <typename T,
+          					template <typename E, typename Allocator=allocator<E> > class Container>
+					class Test
+					{
+
+					  public:
+						Test();
+						Test(const Test<T,Container > &);
+					  
+					};
+				//实现类模板方法	不能省略 模板参数模板中的默认参数类型
+			
+				template <typename T,
+						  template <typename E, typename Allocator=allocator<E> > class Container>
+				Test<T,Container>::Test(const Test<T,Container> & )
+				{
+		
+				}
+			 使用 该类模板：
+			 	Test<int,vector> t; //第二个参数只传入 类模板名即可	
+		 	说明：
+		 		a.模板参数模板应用：
+		 			当 参数类型 为  类模板类型的具体化类型时
+   						应 将该该参数类型 声明为 模板参数，然后在实例化对象时，传入 具体化参数
+   							Test<T,Container>::Test()
+							{	
+								//使用 T 类型作为 模板参数模板的具体化类型
+								Container<T>* t= new Container<T>();
+								t->insert(t->end(),T());
+								for(typename Container<T>::iterator it = t->begin(); it!=t->end(); ++it)
+								{
+									cout << *it << endl;
+								}
+								delete t;
+							}
+					不能使用该形式 进行声明 类模板， 即 将模板具体化形式作为 模板参数
+					template <typename T, typename Container<T> >
+				b. 也可以直接使用 template<typename T,typename E>
+						此时 若E 参数为 模板类型，则使用该类模板则需传入 具体化的模板类型：
+							Test<int, vector<int> > t;
+				c. 模板参数模板 会由于 该模板参数的个数而各异 不能统一使用一个 模板参数 来模板化而作为一个参数类型
+					即 不同的模板参数模板的 参数个数 作为 可接受的模板参数模板类型 														
