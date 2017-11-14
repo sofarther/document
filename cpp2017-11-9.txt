@@ -34,9 +34,13 @@
 		a.	默认下 全局运算 new delete  new[] delete[] 及其重载形式
 			也可以在类中重载 该运算，将调用该重载的运算
 			Test * pt = new Test();
-			其中 new Test()  先 调用 operator new() 为 Test 对象分配内存，然后再调用Test构造函数创建对象
+			其中 new Test()  先 调用 operator new() 为 Test 对象分配内存，然后再调用Test默认构造函数创建对象
+			 new []  只能调用 类的默认构造函数来实例化 对象，而不能直接调用 带有参数的构造函数
+			 因此 在 使用 new [] 分配多个类对象，并需要初始化时，则需要 在调用默认构造函数后再遍历调用 初始化函数，
+				
 			delete * pt;
 			先 调用 pt 指定的 Test对象 的析构函数，然后调用 operator delete 再释放  内存
+			
 		b. 重载形式：
 			class MemoryTest
 			{
@@ -212,3 +216,93 @@
 							Test<int, vector<int> > t;
 				c. 模板参数模板 会由于 该模板参数的个数而各异 不能统一使用一个 模板参数 来模板化而作为一个参数类型
 					即 不同的模板参数模板的 参数个数 作为 可接受的模板参数模板类型 														
+		
+		(2)非参数类型:
+				只能为 整数类型（char int long ...） 枚举、 指针、 引用
+				对于非引用 类型时，只能为常量，不能传入变量
+						且不能为对象等形式
+				对于引用类型：可传入对象，可为变量
+					template<typename T, const T & EMPTY>
+					class Grid
+					{
+					 public:
+					  Grid(size_t inWidth=kDefaultWidth, size_t inHeight=kDefaultHeight);
+					  Grid(const Grid<T,EMPTY> & src);
+					  virtual ~Grid();
+					  Grid<T,EMPTY> & operator=(const Grid<T,EMPTY> & src);
+					 protected:
+					  void copyFrom(const Grid<T,EMPTY>& src);
+					  T** mCells;
+					  size_t mWidth, mHeight;
+					  const static int  kDefaultWidth=10;
+					  const static int kDefaultHeight=10;
+					};
+				其中 EMPTY 可为对象变量	
+				引用非参数类型，在实例化 该类模板时，传入的引用非参数类型 必须为 全局变量，
+						且不能为常量
+					即在 main() 函数外声明的变量， 即该变量必须为 外部链接范围的变量
+					 string s="aa";
+					int main(){   Grid<string,s> grid2;}
+					若 需使用 const 常量，则需添加 extern 关键字：
+					extern const string s="aa";
+		(3)递归模板：
+				template<typename T,size_t N>
+				 class NDGrid
+				{
+				 public:
+				  NDGrid(int inWidth=kDefaultWidth);
+				  NDGrid(const NDGrid<T,N> &src);
+				  NDGrid<T,N> & operator=(const NDGrid<T,N> &src);
+				  virtual ~NDGrid();
+				  NDGrid<T,N-1>& operator[](int x);
+				  const NDGrid<T,N-1>& operator[](int x)const;
+				  size_t getSize() const{return mSize;}
+				  void resize(size_t inSize);
+
+				 protected:
+				   NDGrid<T,N-1>* mCells;
+				  const static  int kDefaultWidth=10;
+				  void copyFrom(const NDGrid<T,N> &src);
+				  size_t mSize;
+				};
+				
+			非参数类型部分具体化，声明递归的最后模板	
+				template<typename T>
+				class NDGrid<T,1>
+				{
+				 public:
+				  NDGrid(int inWidth=kDefaultWidth);
+				  NDGrid(const NDGrid<T,1> &src);
+				  NDGrid<T,1> & operator=(const NDGrid<T,1> &src);
+				  virtual ~NDGrid();
+				  T& operator[](int x);
+				  const T& operator[](int x)const;
+				  size_t getSize() const{return mSize;}
+				  void resize(size_t inSize);
+
+				 protected:
+				  T * mCells;
+				  const static  int kDefaultWidth=10;
+				  void copyFrom(const NDGrid<T,1> &src);
+				  size_t mSize;
+				};
+		(4)可变参数模板： 在 C++11 中添加
+				template <typename T1,typename... Tn>
+				void processValue(T1 arg1, Tn... args)
+				{
+				  processValue(arg1);
+				  int num = sizeof...(args);
+				  cout << "Args count: " << num <<endl;
+				  processValue(args...);
+				}
+			其中 a. typename... 表示的参数类型为任意个参数类型
+					使用 Tn...  声明的形参 则表示任意个参数
+						args... 表示将接受到的参数 解包，以, 分隔
+				b. sizeof...(args) 可获取 args 中接受到的参数个数
+				c. 一般应具体化一个参数类型模板，防止无限递归：
+					template <typename T>
+					void processValue(T arg)
+					{
+					  //根据不同类型调用不同的重载函数，该形式的重载函数必须存在，否则会报错
+					  handleValue(arg);
+					}
