@@ -1,0 +1,39 @@
+1.shell 中使用 find 命令删除 过期时间文件
+logDir="/tmp/log"
+# +7 表示修改日期 在7 天前； -7 表示7天内 7 表示正好等于7天
+# \; 之间不能有空格
+find $logDir -type f -mtime +7 -exec rm -f {} \;
+2.在 shell 中 删除目录下的文件：
+	rm -f "$logDir/*" 
+  无法执行删除, 可能 防止* 恶意删除文件，可通过 find 进行过滤后 再删除
+
+3.时间戳 和时间字符串转化：
+	date +%s 当前时间戳
+	date -d "2017-11-17 12:43:33" +%s 指定时间的时间戳
+	//获取 指定时间戳 的时间字符串
+	date -d @1508406670 "+%Y-%m-%d %H:%M:%S"
+   获取 文件的访问时间戳：
+   	stat filename
+	输出：
+ 	File: ‘one space.log’
+  	Size: 0         	Blocks: 0          IO Block: 4096   regular empty file
+	Device: 801h/2049d	Inode: 37417982    Links: 1
+	Access: (0644/-rw-r--r--)  Uid: (    0/    root)   Gid: (    0/    root)
+	Context: unconfined_u:object_r:admin_home_t:s0
+	Access: 2017-10-19 17:51:10.930973098 +0800
+	Modify: 2017-10-19 17:51:10.930973098 +0800
+	Change: 2017-10-19 17:51:10.930973098 +0800
+ 	Birth: -
+     其中 Access: 表示访问的时间：
+     	故可以使用该形式获取，并转为时间戳：
+	stat one\ space.log  | grep Access | grep -v Uid | 
+		awk  '{$1="";  print $0}' |xargs -i date -d {} +%s
+	输出：1508406670
+        
+	将时间字符串转为YYYYmmddHHMMSS:
+	stat one\ space.log | grep -i Modify 
+	| awk -F. '{print $1}' | awk '{print $2$3}'
+	| awk -F- '{print$1$2$3}' | awk -F: '{print $1$2$3}'
+	
+	输出： 20171019175110
+
