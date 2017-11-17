@@ -306,3 +306,63 @@
 					  //根据不同类型调用不同的重载函数，该形式的重载函数必须存在，否则会报错
 					  handleValue(arg);
 					}
+
+4. 类方法指针变量：
+	int (Test::*methordPtr)() const = &Test::getVal;
+	上式 定义了一个 methordPtr 函数指针，指向 Test类的 getVal() 方法
+	其中 对于 const 方法需 添加 const 修饰该函数指针
+	 调用 函数指针方法
+	 Test t3(20);
+		cout << "t3: " << (t3.*methordPtr)() <<endl;
+5. 
+	(1)shared_ptr<type> 可以指定 释放保存的指针的 调用函数
+				int * malloct_int(int i)
+				{
+					//使用 malloc() 分配内存，需使用 free 释放
+					int * p =(int *)malloc(sizeof(int));
+					*p=i;
+					return p;
+				}
+				int * p= malloct_int(10);
+				//指定 释放内存的函数， unique_ptr 不支持该形式
+				shared_ptr<int> share_p(p,free);	
+			  还可以用于其他资源指针：
+				void closeFile(FILE* filePtr)
+				{
+					if(filePtr == nullptr)
+					{
+						return;
+					}
+					fclose(filePtr);
+					cout << "File closed\n";
+				}
+				// 在 share_f 变量释放时，会调用 closeFile 方法关闭文件
+				shared_ptr<FILE> share_f(fopen("test.txt","w"),closeFile);
+	(2)	unique_ptr<type> 可以通过 std::default_delete 对象 实现指定调用函数
+			default_delete 重载的 operator() 默认下会调用 delete 或 delete[] 来释放内存
+			
+		unique_ptr<int> unique_p(p,default_delete<int>());
+			default_delete<int>() 创建一个 default_delete 对象，作为释放内存的回调函数
+		可以通过 具体化 default_delete<T> 模板，并重载 operator() 方法，实现自定义回调函数
+			namespace std{
+					template <>
+				class default_delete<FILE> 
+				{
+				public:
+					void operator()(FILE * pf)
+					{
+						if(pf == nullptr)
+					{
+						return;
+					}
+					fclose(pf);
+					cout << "In default_delete, File closed\n";
+					}
+				};
+					
+			};
+		说明：	
+			default_delete<T> 模板 位于 memory 头文件 和 std 命名空间，因此在具体化该模板时，需在 std 命名空间中定义
+				即使 已通过 using namespace std 引入了命名空间
+		调用：		
+		unique_ptr<FILE> unique_f(fopen("test.txt","w"),default_delete<FILE>());		
