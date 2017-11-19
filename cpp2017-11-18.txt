@@ -1,0 +1,321 @@
+1.创建线程：
+	c++11 中使用
+	包含 thread 头文件， 并在编译时需指定 -lpthread
+	先调用 thread() 构造函数 创建 thread 对象，需传入 该线程执行时，调用的函数对象
+		包括 函数指针、函数对象、lambda、 对象成员方法
+	 函数对象可以带有参数列表，参数为非const 引用类型时，在传入参数时需使用std::ref()显式 指定引用形式
+	 否则会报错，或在形参中使用 const 修饰 引用类型
+	 在thread 构造函数中 可以 传入 调用该函数时的参数	
+	然后 在主线程中 调用 thread 对象 的join() 方法等待该子线程执行结束，
+		若没有调用该方法，则在执行时，会报错
+	
+	(1)函数对象 使用：
+		a.函数指针：
+			void counter(int id, const int& num); 
+			thread(counter,1,10);
+		b.函数对象：
+			class Counter
+			{
+				public:
+					operator()() const
+					{	
+					
+					}
+			}	
+		当函数对象 没有 带有参数的构造函数时，则不能直接使用Counter()创建临时对象作为线程回调函数	
+		可使用以下形式 传入到 thread 构造函数形式	
+			thread({Counter()}); //C++11 中使用	
+			thread((Counter())); //当不支持{} 时，可使用()
+		默认下函数对象 是通过 值复制传入到 thread()构造函数，可通过std::ref()转为引用传入
+			Counter cter;
+			thread(std::ref(cter));
+			当为引用形式 传入时，则在线程中修改该对象的成员时，则在主线程中也会受影响
+		c.lambda:
+			thread([](int id,int num){},4,40);	
+		d. 对象成员方法：
+				class Request{
+					public:
+						void process(int id,int num){}
+				};
+			Request req;	
+			thread t7(&Request::process,&req,m,t);	
+			其中 当在线程中修改 传入的 req 对象值时，会影响到主线程的对象
+	(2)线程本地变量：
+		可使用 thread_local 定义线程 本地变量，
+		每个线程都会复制一个该变量值，线程间不受影响
+		该变量为线程的全局变量，只初始化一次
+		thread_local int tl;
+		可在函数中定义 线程本地变量，该该变量只会在第一次调用该函数时，初始化一次
+		不会每次调用都会初始化该变量
+		void local_var()
+		{
+			thread_local int k;
+			cout <<"K= "<< k++ <<endl;
+		}
+	 在 线程函数中调用该函数：
+	 	void counter(int id, const int& num)
+	 	{
+	 		local_var(); //0
+	 		local_var(); //1
+	 		local_var(); //2
+	 	}
+	(3) 线程抛出异常：
+			可通过 exception_ptr current_exception() 返回当前线程中抛出的异常，
+				若没有异常则返回空
+			可通过 rethrow_exception(exception_ptr) 在其他线程中，重新抛出
+			 void doSomeWork()throw(runtime_error)
+			{
+				for(int i=0; i<5;++i)
+				{
+					cout<< i << endl;
+				}
+				cout << "Thread throwing a runtime error\n";
+				throw runtime_error("Exception from thread");
+			}
+			//参数 err 用于保存 线程中的异常
+			void threadCallback(exception_ptr &err)
+			{
+				try{
+					doSomeWork();
+				}catch(...)
+				{
+					cout << "Thread caught exception\n";
+					err = current_exception(); //获取线程抛出的异常
+				}
+		
+			}	
+		//在主线程中 抛出异常
+		int main()
+		{
+			try{
+   				 cout.sync_with_stdio(true); //保证 cout 对象 为线程安全
+    			exception_ptr error; //用于获取 线程中的异常
+				thread t8(threadCallback,ref(error));//需显式指定引用传入
+				t8.join();
+				//当线程中抛出异常时
+				if(error)
+				{
+					cout << "Main thread received exception\n";
+					//在主线程中 重新抛出异常
+					rethrow_exception(error);
+				}else{
+					cout << "Main thread did not received\n";
+				}
+    			
+    		}catch(const exception & e)
+    		{    			 
+   
+    		}
+    		
+			return 0;
+		}
+	说明： cout.sync_with_stdio(true); 
+			该句 保证 cout 对象 为线程安全，但仍可能会 不同线程交替输出	
+2.互斥： 保证线程之间 数据共享，并实现同步，每次只有一个线程更改数据
+	 对于 简单的标量变量的简单赋值，通常不需要显式同步，
+	 	但如 ++ -- 任何 operator operator=操作则需要同步
+	(1)互斥类 位于 mutex 头文件
+		有 非定时的互斥类 和 定时的互斥类
+		a. 非定时的互斥类 支持的方法:
+			lock()	尝试获取锁，并阻塞线程直到获取锁
+			try_lock() 尝试获取锁,若其他线程已占有锁，则立即返回false，
+					若 获取到锁则返回 true
+			unlock() 释放 当前线程的锁
+		  std::mutex 类 对象不能在 同一个线程中 调用两次 lock() 或try_lock()
+		  	否则可能导致死锁，
+		  	可使用 std::recursive_mutex, 允许多次调用lock() try_lock()加锁
+		  		并通过 多次调用 unlock() 递归解锁
+		b. 定时的互斥类:
+			std::timed_mutex 和 std::recursive_timed_mutex
+				既支持 lock() try_lock() 方法，
+				也支持 try_lock_for(rel_time) 指定过期时间，若在指定时间没有获取锁则返回false
+							若获取大锁则返回 true
+					  try_lock_until(abs_time) 指定时间点，若在系统时间等于或超过该时间点
+					  			没有获取到锁则返回 false, 否则返回 true
+	(2)锁： 将互斥类进行包装，可方便获取和释放互斥体上的锁
+			不同线程 创建锁时，只要 传入的 互斥体 为同一对象即可，不必要锁对象为同一对象
+			a. std::lock_guard<T>(mutex) 
+					构造函数传入 互斥体，并阻塞线程直到 获取该互斥体的锁
+					例：
+						保证每个线程输出完后，其他线程才会输出
+						class Counter{
+						public:
+							Counter(int id, int num):mId(id),mNum(num){}
+		
+							void operator()()const
+								{
+									for(int i=0; i<mNum; ++i)
+									{
+										//当前线程获取锁，在下次循环时，lock1局部变量销毁，从而解除锁
+										lock_guard<mutex> lock1(mMutex);
+										cout << "Counter: " << mId
+												 <<"i= " << i <<endl; 
+									}
+								}
+						protected:
+							int mId;
+							int mNum;
+							static mutex mMutex;
+							static timed_mutex mTimeMutex;
+						};
+				//实例化静态成员
+				mutex Counter::mMutex;
+		b.std::unique_lock<T> 唯一锁，可支持定时锁和指定过期时间锁
+				构造函数：
+				explicit unique_lock (mutex_type& m);	
+				//当没有获取到锁时则不会阻塞线程 		  			
+				unique_lock (mutex_type& m, try_to_lock_t tag);
+				//保存互斥体引用，但不会立即尝试获取锁
+				unique_lock (mutex_type& m, defer_lock_t tag);
+				//假设当前线程已获取互斥体的锁，并负责管理该锁
+				unique_lock (mutex_type& m, adopt_lock_t tag);
+				//指定 过期时间，在指定的时间内没有获取到锁时，则返回 false
+				unique_lock (mutex_type& m, const chrono::duration<Rep,Period>& rel_time);
+				//指定 时间点，在该时间点前没有获取到锁则返回 false
+				unique_lock (mutex_type& m, const chrono::time_point<Clock,Duration>& abs_time);	  					
+			例： 在指定的时间获取锁，并判断是否获取该锁
+					unique_lock<timed_mutex> lock2(mTimeMutex,
+							chrono::milliseconds(200));
+					if(lock2){
+						//获取锁
+						cout << "Counter: " << mId
+							 <<"i= " << i <<endl;     
+					}else{
+						//等待时间已超时
+						cout << "time out\n";
+					}
+		c. std::call_once() std::once_flag 
+			 保证 在所有线程中 只调用一次 指定的函数或方法
+			 例： 指定 类对象方法
+			 	class Data
+				{
+				public:
+					void operator()()
+						{
+							call_once(mOnceFlag,&Data::init,this);
+							cout << "Work\n";
+						}
+					virtual ~Data(){delete [] mArr;}
+				protected:
+					void init()
+						{
+							cout << "init()\n";
+							mArr = new char[20];
+						}
+					mutable once_flag mOnceFlag;
+					mutable char * mArr;
+				};	
+		说明：
+			 call_once() 第一个参数 指定 保存是否已调用 的标志的  once_flag 对象
+			 		第二个参数 指定 方法或函数名
+			 		第三个参数指定 调用函数时的参数
+			 			其中 对于当前类的方法 需传入当前类对象的指针参数：this
+	(3)条件变量：
+			std::condition_variable  和 std::condition_variable_any
+			构造函数 为空参数
+			不支持 复制构造函数 和 operator= 赋值运算
+			在作为类成员时，只需 在定义时声明该对象即可
+			a.可通过 wait(lock) wait_for(lock,duration) wait_until(lock,time_point)
+				wait(lock,functional)
+			阻塞线程
+				先调用 指定的锁的 unlock() 方法释放锁，然后等待 指定的锁 的通知，
+				当收到 其他线程的 对该锁的 通知后，再调用 锁的 lock() 方法等待加锁
+				即 wait() 方法 有两次 阻塞线程等待，且 在 wait() 后当前线程是对指定锁 是加锁的状态
+					因此若需 在线程需再次加锁时，则需先调用 unlock()解锁
+				 其中 指定的锁对象 保存的 互斥体对象需相同，才视为对 同一锁的加锁
+				 	而不需要 锁对象相同
+				 wait(lock,functional)
+				 functional 为 空参数 返回bool 的函数对象	
+				 线程执行到 该语句时，先 回调 functional ，
+				 	若返回 false 则 调用wait(lock) 等待该条件变量通知
+				 		若 捕捉到 条件变量通知后，则会再回调 functional ，
+				 			若仍返回 false, 则继续调用 wait(lock)等待
+				 	若 返回 true,则不会通过 wait()来阻塞线程，而是向下执行
+				 即 相当于：	
+				  		while(! functional())
+				  		{
+				  			cond_var.wait(lock);
+				  		}
+				 condition_variable 只能等待 unique_locl<mutex> 条件变量
+					condition_variable_any 可等待任何 条件变量
+			b.可通过 notify_one() 和nofity_all() 通知 其他处于 wait() 等待的线程
+				notify_one() 和nofity_all()  并不会解锁当前线程的锁，
+					只对 其他线程的 wait() 等待通知的阻塞 有效
+			c.线程中的每个 条件变量 的wait() 必须在其他线程中有 一个对应的该条件变量的 notify_one() 或 notify_all()
+				来通知，否则会导致 该线程无法 在等待通知时一直阻塞线程而无法返回	
+			d.一般在需要等待其他线程先执行到一定条件时，才继续执行当前线程后面代码 的 线程 中调用 wait()
+				而 在需先执行的 线程中 调用 notify_all() 发送通知，必要时，可通过修改 状态标志，
+				并在 wait()线程中 的 回调函数中 对状态进行判断是否继续向下执行				 					
+			e.对于 不同的 共享的变量或资源， 应使用 不同 的互斥体 、锁、条件变量 来同步线程
+				而对于 某些 共享的变量 在线程中 已添加的同步代码后 的访问该变量的位置 
+					与其他线程修改该变量值 时 当前线程所处的执行位置 无关时，则可以不需要对该共享变量添加 同步代码 
+					
+			mThread= std::thread(&Logger::processEntries,this);
+   			
+   		 	std::unique_lock<std::mutex> lock1(mThreadStartMutex);
+   			// mThreadStartCondVar 为 条件变量，构造函数 为空参数
+   			 mThreadStartCondVar.wait(lock1,[&]{
+           							 std::cout << "mthread start\n";
+            							return mThreadStart==true;});
+           //在 新线程  调用 的 processEntries 方法：
+           		//设置线程启动标志
+				mThreadStart=true;
+				//通知主线程 wait()
+				mThreadStartCondVar.notify_all();
+    (4)线程之间 通信：
+    		位于 future 头文件
+    		a. 当前线程 传入 值到 子线程：
+    			在 当前线程中 创建 std::promise<T> 对象
+    				该对象 作为 当前线程的输出，可通过 set_value(T) 将值输出到子线程
+    				
+    				在 创建子线程时，将 promise<T>对象传入到 子线程中，
+    					可在子线程中 通过 get_future() 返回保存的 promise<T>对象输出的值 的 future<T>对象
+    					再通过 future<T> 的 get() 获取值
+    				其中 future<T>::get() 方法 会阻塞线程 直到有数据获取到为止
+    				也可以通过  future<T>::wait_for(duration) 等待指定的时间，若超时仍没有数据接受
+    				则 返回 std::future_status::timeout 标志，否则返回 std::future_status::ready 
+    				然后再通过 get() 方法获取值：
+    				void print_int(std::future<int> & fut)
+					{
+						int x= fut.get();
+						std::cout << x  <<"\n";
+		
+					}
+    				 std::promise<int>prom;
+					std::future<int> fut = prom.get_future();
+					std::thread th1(print_int,std::ref(fut));
+					prom.set_value(10);
+		
+					th1.join();
+			b.获取 子线程的结果：
+				不能 通过 promise<T> 对象来反向实现获取子线程中的值
+				可通过 std::packaged_task<functional> 对象，在构造函数中指定线程中回调的函数对象
+				然后通过 packaged_task<T>::get_future() 获取 用于保存该子线程的结果 的 future<T>对象
+				然后 再通过 packaged_task 对象 执行
+				最后 获取结果
+				
+					std::packaged_task<int(int)> task(twotimes);
+					std::future<int> ret = task.get_future();
+					//执行
+					task(20);
+					int val = ret.get();
+      		c.async(): 默认下会自动判断 是通过 同步执行指定的函数对象，或开启新线程执行指定的函数对象
+      					并返回 用于保存 结果的 future<T> 对象
+      					其中 当 同步执行时，则会在 future<T>对象 调用 get() 方法时，才会执行指定的函数对象
+      						并 当使用 future<T>::wait_for(duration) 时，返回
+      							std::future_status::deferred 标志
+      				也可以通过 std::launch::async 显式指定 开启线程 执行 
+      					或 std::launch::deferred 显式指定 同步执行
+      					
+      				 std::future<bool> fut =std::async(std::launch::async, is_prime,700020007);
+					 std::cout << "checking,please wait";
+					 std::chrono::milliseconds span(100);
+					 //当超时仍没有结果时，则返回 timeout
+				    while(fut.wait_for(span) == std::future_status::timeout)
+					{
+						std::cout <<'.'<<std::flush;
+					}
+					//已有计算结果
+					bool res = fut.get();
+   								
+		 	
