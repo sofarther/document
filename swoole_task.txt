@@ -1,0 +1,92 @@
+1.redisServer:
+	use Swoole\Redis\Server;
+
+	$db = require 'db.php';
+    $mysql_config=require 'async_mysql.php';
+	if($db===false){
+		exit;
+	}
+	$server = new Server('127.0.0.1',9501,SWOOLE_BASE);
+	//设置 开启task 参数， 和保存数据库连接句柄
+	//配置Task进程的数量，配置此参数后将会启用task功能。Server务必要注册onTask、onFinish2个事件回调函数
+	$server->set(
+				[
+					'task_worker_num'=>1,
+					'worker_num'=>1,
+					'db'=>$db,
+				]	
+			);
+	//setHandler() 指定的事件处理函数 为同步模式，
+	//客户端会一直等待该处理函数的返回结果
+	//当处理函数中会执行耗时任务时，可以通过调用异步方法
+	//防止阻塞程序，从而使该处理函数为异步模式
+	//但 该事件处理函数必须有结果返回，否则redis 客户端仍会一直等待
+
+	//当 Redis客户端 通过lpush(),发送的数据队列，将触发该事件
+	//并等待该事件处理函数的结果返回
+	$server->setHandler('LPUSH',function($fd,$data) use ($server){
+				//接受到的数据为索引数组
+				var_dump($data);//数组
+			//task()为异步方法，故会继续向下执行，不会阻塞worker进程
+			//而是丢给task进程，
+			//worker进程可以继续处理新的数据请求。
+			//任务完成后会异步地通知worker进程告诉它此任务已经完成。
+				$task_id = $server->task($data);
+			//回调函数返回字符串类型时会自动发送给客户端	
+			//返回的数据必须为Redis格式，可使用format静态方法进行打包	
+			if($task_id === false){
+				return Server::format(Server::ERROR);
+			}else{
+				return Server::format(Server::INT,$task_id);
+			}
+	});
+	//在onTask函数中 return，表示将此内容返回给worker进程。worker进程中会触发onFinish函数，表示投递的task已完成。
+	//return的变量可以是任意非null的PHP变量，一般为 string
+	//onTask事件中没有调用finish方法或者return结果，worker进程不会触发onFinish
+	//1.7.2以前的版本，需要调用swoole_server->finish()函数将结果返回给worker进程
+	//执行onFinish逻辑的worker进程与下发task任务的worker进程是同一个进程
+	$server->on('Finish',function($serv, $task_id, $data){
+		var_dump($data); //onTask 返回的值
+		echo "Finish";			
+	});
+	//在有新的任务投入到task_worker进程时，
+	//该事件处理函数 在task_worker进程内被调用，worker进程可以使用swoole_server_task函数向task_worker进程投递新的任务
+	//将 该 task_worker进程状态切换为忙碌，该进程将不再接收新的Task，当worker进程中有新task 投入到 task_worker进程时，
+	//会在 task_worker 进程形成 正在排队队列，等待当前当前进程处理，但不会影响到 worker进程
+	
+	// 当onTask函数返回时会将进程状态切换为空闲然后继续接收新的Task。	
+	//task进程必须是同步阻塞的,支持定时器,不能使用swoole_mysql、swoole_redis、swoole_event等异步IO函数
+	$server->on('Task',function($serv,$task_id,$work_id,$data){
+			echo "this is task handler";
+			sleep(10);
+			//var_dump($data); //接受到的task 的数据
+			
+			$sql=trim($data[0]);
+			$params=json_decode(trim($data[1]),true);
+			try{
+				$stmt = $serv->setting['db']->prepare($sql);
+				//使用PDOStatement 执行插入时，若除了指定的指定的字段外的其他字段没有默认值时，则执行操作失败
+				var_dump($stmt->execute($params));
+				return "done";
+			}catch(PDOException $e){
+				echo $e->getMessage();
+			}
+	});
+	
+	$server->start();
+	
+2. 在 php-fpm 下通过redis扩展，使用 swoole_server 的task 功能	
+	$redis = new Redis;
+	//使用 Redis 对象连接到 swoole_server服务器，而不是直接连接到redis-server服务器
+	$redis->connect('127.0.0.1',9501);
+	
+	$sql='insert into user(user_name,user_passwd,user_register_time,mobile)
+			values(:username,:password,:time,:mobile)';
+	$data=[
+			':username'=>$username,
+			':password'=>md5($passwd),
+			':time'=>time(),
+			':mobile'=>'24434232'
+		];	
+	$task_id = $redis->lpush($sql,json_encode($data));
+	
