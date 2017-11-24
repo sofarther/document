@@ -1,0 +1,114 @@
+1. 在 apache 或 fpm 中使用 swoole 扩展：
+	(1) 通过 \swoole_client 同步模式：
+		a.	\swoole_http_server 不能监听到 \swoole_client 的连接，
+			因此只能使用 \swoole_server 进行监听：
+			$http = new swoole_server("127.0.0.1",9502);
+			$http->on("receive",function($serv,$client,$from_id,$data){
+				var_dump($data);
+				//通过 $serv 和 $client 参数 将数据发送到访问的客户端
+				$serv->send($client, $data);
+				
+			});
+			// 在 apache 或 fpm 中使用 客户端
+				$client = new \swoole_client(SWOOLE_SOCK_TCP);
+				$client->connect('127.0.0.1', 9502) or die("connect failed\n");
+				$client->send(str_repeat("a", 600));
+			//700 表示接收数据的缓存区最大长度， 0表示是否等待 结束到的数据 大小等于指定的大小	
+				$data = $client->recv(700,0) ;
+				echo "recv: " .$data."\n";
+		说明：
+			string $swoole_client->recv(int $size = 65535, bool $waitall = 0);
+				如果设定了$waitall就必须设定准确的$size，否则会一直等待，直到接收的数据长度达到$size
+				未设置$waitall=true时，$size最大为64K
+				如果设置了错误的$size，会导致recv超时，返回 false
+				若接受到的数据大于 $size 指定的值时，则会只返回 $size 指定的大小的数据，并返回
+					不会因为遇到 换行符而直接返回
+	
+	b. 对于耗时任务则可以通过 \swoole_server 设置task/finish 模式，处理 耗时任务
+			\swoole_server 设置  task_worker_num 开启 task 功能,
+				在 处理 客户端 发送数据的 onReceive的 回调函数中 
+				调用 task($data) 将任务 丢给task进程，而当前的 worker 进程直接返回，
+				在有新的任务投入到task_worker进程时，
+				Task 事件处理函数 在task_worker进程内被调用，
+			因此 \swoole_server 通过对 Task 和 Finish 事件监听，处理 task 进程中的任务
+			$http = new swoole_server("127.0.0.1",9502);
+			
+			//设置 开启task 参数， 
+		//配置Task进程的数量，配置此参数后将会启用task功能。Server务必要注册onTask、onFinish2个事件回调函数
+			$http->set(['task_worker_num'=>1,'worker_num'=>1]);	
+			//task进程必须是同步阻塞的,支持定时器,不能使用swoole_mysql、swoole_redis、swoole_event等异步IO函数			
+			$http->on("Task", function($server,$task_id,$worker_id,$data){
+				echo "on Task\n";
+				sleep(10);
+				var_dump($data);
+				return "done";
+			});
+			$http->on("Finish", function($server,$task_id,$data){
+				var_dump($data);
+				return "Finish";
+			});
+
+			//swoole_client connection listener
+			$http->on("receive",function($serv,$client,$from_id,$data){
+				var_dump($data);
+				//任务完成后会异步地通知worker进程告诉它此任务已经完成。
+				$task_id = $serv->task($data);
+				$serv->send($client, $task_id);			
+			});
+
+	(2)	可以通过 php-redis 扩展 访问 Swoole\Redis\Server 监听端口
+			Swoole-1.8.14版本增加一个兼容Redis服务器端协议的Server框架，可基于此框架实现Redis协议的服务器程序。
+			Swoole\Redis\Server继承自Swoole\Server，可调用父类提供的所有方法。
+				Swoole\Redis\Server不需要设置onReceive回调
+		客户端：	
+			使用 Redis 对象连接到 Swoole\Redis\Server服务器，而不是连接到真正的redis-server服务器
+			$redis = new Redis;
+			$redis->connect('127.0.0.1',9501);
+		 
+		   通过 通过lpush(),发送的数据队列 ：
+				
+			$sql='insert into user(user_name,user_passwd,user_register_time,mobile)
+					values(:username,:password,:time,:mobile)';
+			$data=[
+					':username'=>$username,
+					':password'=>md5($passwd),
+					':time'=>time(),
+					':mobile'=>'24434232'
+				];	
+			//等待 服务器返回	
+			$task_id = $redis->lpush($sql,json_encode($data));		
+			
+		 Swoole\Redis\Server 也可以支持 task/finish,  
+			设置  task_worker_num 开启 task 功能,
+			在 处理 客户端 发送数据的相应的方法(SET GET LPUSH ...)的 回调函数中 
+			调用 task($data) 将任务 丢给task进程，
+			$server = new Swoole\Redis\Server('127.0.0.1',9501,SWOOLE_BASE);
+			
+			$server->set(
+						[
+							'task_worker_num'=>1,
+							'worker_num'=>1,							
+						]	
+					);
+			$server->setHandler('LPUSH',function($fd,$data) use ($server){
+				//接受到的数据为索引数组
+				var_dump($data);//数组
+			
+			
+				$task_id = $server->task($data);
+			//回调函数返回字符串类型时会自动发送给客户端	
+			//返回的数据必须为Redis格式，可使用format静态方法进行打包	
+			// 在 2.0 后需 使用  $server->send($fd,$data) 返回数据
+			//而不能使用 return, 否则 客户端将一直等待
+			if($task_id === false){
+				return Server::format(Server::ERROR);
+			}else{
+				return Server::format(Server::INT,$task_id);
+			}
+			});
+		
+			$server->on('Task',function($serv,$task_id,$work_id,$data){
+			
+			});
+			
+		

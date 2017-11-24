@@ -34,6 +34,8 @@
 				$task_id = $server->task($data);
 			//回调函数返回字符串类型时会自动发送给客户端	
 			//返回的数据必须为Redis格式，可使用format静态方法进行打包	
+			// 在 2.0 后需 使用  $server->send($fd,$data) 返回数据
+			//而不能使用 return, 否则 客户端将一直等待
 			if($task_id === false){
 				return Server::format(Server::ERROR);
 			}else{
