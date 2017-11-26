@@ -72,4 +72,106 @@
 					
 							var_dump($result);	
 			
-					}); 										 
+					}); 
+2.异步读写 文件：
+	只能在cli 环境下执行：
+	(1)读取文件：
+		a. swoole_async_readfile(string $filename, mixed $callback);
+			文件全部内容读取完毕后会回调指定的callback函数		
+			其中 $callback 参数为 function($filename,$content)
+				$content 为读取到的文件内容
+			将文件内容全部复制到内存，所以不能用于大文件的读取
+		b. swoole_async_read(string $filename, mixed $callback, int $size = 8192, int $offset = 0)		
+				   分段读取 内容，每次读取成功后调用回调函数，直到读取文件结束
+   					或 回调函数 返回 False 停止下次读取（没有返回或返回 true 则继续读取）
+   						读取 中文 文件时 直接输出可能会出现乱码
+				其中：
+					bool callback(string $filename, string $content);
+						$filename，文件名称
+						$content，读取到的分段内容，如果内容为空，表明文件已读完	
+					$count=0;		
+				  Swoole\Async::read("mydata",function($filename,$data) use (&$count){
+					   $count++;
+					   //在读取第三次时返回 false, 即实际上 读取了3次
+					   if($count >2)
+					   {
+					   		return false;
+					   }
+					   echo $count.PHP_EOL;
+					   echo $data;
+					   },100,12);
+ 	(2)写入文件：
+ 		a. swoole_async_writefile('test.log', $file_content, function($filename) {
+   					 echo "wirte ok.\n";
+				}, $flags = 0);		
+			其中  $flags 可为 FILE_APPEND 表示追加 在1.9.1或更高版本可用
+			
+		b. swoole_async_write(string $filename, string $content, int $offset = -1, mixed $callback = NULL);
+			当offset为-1时表示追加写入到文件的末尾
+3.EventLoop: 
+	可将其他扩展创建的socket，PHP代码中stream/socket扩展创建的socket等加入到Swoole的EventLoop中
+	(1)
+		bool swoole_event_add(int $sock, mixed $read_callback, mixed $write_callback = null, int $flags = null);
+			用于将一个socket加入到底层的reactor事件监听中
+			参数1可以为以下三种类型：
+				int，就是文件描述符,包括swoole_client的socket,以及第三方扩展的socket（比如mysql）
+				stream资源，就是stream_socket_client/fsockopen 创建的资源
+				sockets资源，就是sockets扩展中 socket_create创建的资源，
+				不能为 fopen() 打开返回的 资源句柄	
+			参数2为可读回调函数，
+				在可读事件回调函数中必须使用fread、recv等函数读取Socket缓存区中的数据，
+					否则事件会持续触发，
+					如果不希望继续读取必须使用Swoole\Event::del移除事件监听
+			参数3为可写事件回调	
+				在可写事件回调函数中，写入socket之后必须调用Swoole\Event::del移除事件监听，
+					否则可写事件会持续触发
+			参数4为事件类型的掩码，可选择关闭/开启可读可写事件，
+					如SWOOLE_EVENT_READ，SWOOLE_EVENT_WRITE，或者SWOOLE_EVENT_READ | SWOOLE_EVENT_WRITE
+					
+		$fd =stream_socket_client("tcp://localhost:80",$errno,$errstr,30);
+ 		$type="";
+ 		 swoole_event_add($fd,function($fd) use(&$type) {
+ 		     $type="read";
+ 	    	 file_put_contents("test2.log",fread($fd,8192),FILE_APPEND);
+ 		 });
+ 		 $line="sub.html";
+ 		 //写入 请求字符串， 返回数据 将触发 $fd 添加的事件监听回调函数
+		$host="GET /html/$line HTTP/1.1\r\n Host:localhost\r\n\r\n";
+ 		fwrite($fd,$host);		
+	(2)	
+		bool swoole_event_set($fd, mixed $read_callback, mixed $write_callback, int $flags);
+		修改事件监听的回调函数和掩码。
+		其中  $fd 必须为已添加的 事件轮询 的 socket否则会报错
+			对于不需要修改的回调函数可传入 null
+	(3)bool swoole_event_del(int $sock);
+			参数为socket的文件描述符	
+		移除监听的socket。swoole_event_del应当与swoole_event_add成对使用
+	(4)其他：
+		a.swoole_event_defer(function(){})
+			在当前EventLoop的事件循环结束、下一次事件循环启动时响应
+			当有多个事件触发时，会在处理完全部触发的事件后调用，而是不对某个事件处理结束后调用	
+			只对 EventLoop的事件 有效，对于 其他事件如 定时任务，则不会调用 
+		b.swoole_event_wait()
+			HP5.4之前的版本没有在ZendAPI中加入注册shutdown函数。
+			所以swoole无法在脚本结尾处自动进行事件轮询。
+			所以低于5.4的版本，需要在你的PHP脚本结尾处加swoole_event_wait函数。
+			使脚本开始进行事件轮询	
+4.异步定时器：
+	(1)int swoole_timer_tick(int $ms, callable $callback, mixed $user_param);
+		$ms 指定时间，单位为毫秒
+		$callback_function 时间到期后所执行的函数。
+			function callbackFunction(int $timer_id, mixed $params = null);
+				$timer_id 定时器的ID，可用于swoole_timer_clear清除此定时器
+				$params 由swoole_timer_tick传入的第三个参数
+		$user_param 用户参数, 该参数会被传递到$callback_function中. 
+				如果有多个参数可以使用数组形式. 
+				也可以使用匿名函数的use语法传递参数到回调函数
+	返回 定时器 ID
+		定时器回调函数的执行时间不影响下一次定时器执行的时间
+		定时器回调函数的执行时间过长，甚至覆盖了下一次定时器执行的时间。底层会进行时间校正，丢弃已过期的行为，在下一时间回调
+	
+	(2)int swoole_timer_after(int $after_time_ms, mixed $callback_function, mixed $user_param);
+			swoole_timer_after函数是一个一次性定时器，执行完成后就会销毁	
+	(3) bool swoole_timer_clear(int $timer_id)
+			使用定时器ID来删除定时器
+5.																										 

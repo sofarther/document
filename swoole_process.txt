@@ -1,0 +1,142 @@
+1.swoole_process 创建一个子进程：
+	swoole_process提供了基于unixsock的进程间通信，使用很简单只需调用write/read或者push/pop即可
+	swoole_process支持重定向标准输入和输出，在子进程内echo不会打印屏幕，而是写入管道，读键盘输入可以重定向为管道读取数据
+	配合swoole_event模块，创建的PHP子进程可以异步的事件驱动模式
+	swoole_process提供了exec接口，创建的进程可以执行其他程序，与原PHP父进程之间可以方便的通信
+	(1)构造函数：
+		__construct(callable $function, $redirect_stdin_stdout = false, $create_pipe = true);	
+			$function，子进程创建成功后要执行的函数，底层会自动将函数保存到对象的callback属性上。
+					如果希望更改执行的函数，可赋值新的函数到对象的callback属性
+			$redirect_stdin_stdout，重定向子进程的标准输入和输出。
+						启用此选项后，在子进程内输出内容将不是打印屏幕，而是写入到主进程管道。
+						读取键盘输入将变为从管道中读取数据。默认为阻塞读取。
+				 若将 第二个参数设置为 true, 则 子进程中的 echo var_dump()的输出也会输出到父进程，而不是终端		
+			$create_pipe，是否创建管道，启用$redirect_stdin_stdout后，此选项将忽略用户参数，强制为true。
+							如果子进程内没有进程间通信，可以设置为 false
+			$process = new \swoole_process(function(\swoole_process $worker){
+				//设置子进程名
+				$worker->name(sprintf('php-ps:%s','worker'));
+				sleep(20);
+				echo "sub process end\n";
+				$worker->exit();
+			},false,false);
+		可以通过 name() 方法设置 当前进程名，该方法需在调用 start() 执行该进程后 才调用
+			与 swoole_set_process_name() 函数相同	
+	(2)wait(bool $blocking = true)
+			父进程等待子进程结束，否则子进程会变为僵尸进程
+		当子进程结束时，则
+		wait()方法成功返回时，返回退出的子进程信息：
+			array('code' => 0, 'pid' => 15001, 'signal' => 15)
+			包含子进程的PID、退出状态码、被哪种信号KILL
+		当失败时，则返回 false	
+			对于有多个子进程，可能同时有多个子进程退出
+			需循环等待
+	(3)步骤：
+		a.创建swoole_process 对象后 
+		b. 在父进程中 添加 SIGCHLD 信号的监听回调函数
+				   \swoole_process::signal(SIGCHLD,function($signo){
+					   var_dump($signo);
+					   //必须为 false 非阻塞模式
+					   while($ret = \swoole_process::wait(false))
+					   {
+					   		echo "PID:".$ret['pid']." exit\n";   
+					   }
+					});
+			使用swoole_process作为监控父进程，创建管理子process时，
+			父进程必须注册信号SIGCHLD对退出的进程执行wait，否则子process一旦被kill会引起父process exit
+			
+		c. 调用 start() 方法启动进程,该方法 返回该子进程的 PID
+		d.在父进程中调用 swoole_process::wait() 静态方法 等待子进程结束		
+			
+    说明：
+    	a.当 父进程 没有对 SIGCHLD 信号捕捉 且没有调用 wait() 等待子进程时
+				则父进程在执行结束后，直接退出;
+			若只调用 wait() 方法等待时，则 在一个子进程结束时，
+				并 wait()返回后，则 父进程也会退出;
+			若 父进程 对 SIGCHLD 信号进行捕捉时，则 父进程将一直执行，不论子进程是否已结束或wait() 方法已返回
+		
+		b.当 父进程中 没有调用 wait 等待子进程时，则 当子进程结束时，或被杀死时，
+			将触发 SIGCHLD信号,并调用该信号的回调函数;
+		
+		 若 父进程中调用了 wait 等待子进程时，则 当子进程结束或被杀死时，则父进程 wait()返回
+			而不会触发 该SIGCHLD 信号的处理函数
+		若 父进程没有执行到 调用wait() 方法处于等待状态时，，而子进程结束时，此时子进程仍没有完全结束
+				则对于 只有一个子进程时父进程会 在执行到 wait()后 仍会获取该结束的子进程，并回收该子进程
+				对于多个子进程，则可能会 多个结束的子进程 压缩，导致 只能回收 部分子进程
+
+2.父进程和子进程直接的数据输入和输出：
+	(1)read()/write()
+			在父进程中 调用 swoole_process 对象 的 read() 方法可获取 该对象在其进程中使用 write()输出的数据； 
+			在子进程中 调用 swoole_process 对象的 read()方法可获取 该 swoole_process对象在父进程中 调用 write()方法输出的数据
+			若 在swool_process 的构造函数中重定向了子进程的输入输出，则 在子进程中 使用 echo var_dump() 的输出
+			也可以通过 父进程中通过 该进程对象的 read() 方法获取
+			$process = new \swoole_process(function(\swoole_process $worker){
+					$data = $worker->read();
+					echo "in sub process:\n";
+					var_dump($data);
+					$worker->write("to master: ".$data);
+				},false);
+
+				$process->start();
+				$line = fgets(STDIN);	
+				$process->write($line);
+				echo "read from sub process:\n";
+				$data = $process->read();
+				echo $data;
+			说明：
+				a.在  swoole_process 的构造函数中指定的 回调函数 中 传入的 swoole_process 对象 为 当前子进程的 对象
+				而 创建 的 swoole_process 对象 也为 子进程对象 
+				 swoole_process 对象的 read() 和 write() 方法 将 数据重管道中读取和 写入到管道中
+				b. read() 方法 为 阻塞方法，直到管道中有 数据写入时，才读取后返回
+					可通过 setTimeOut()设置 read() 过期时间(在1.9.22 后使用)
+					或 通过 将管道加入到事件循环中，变为异步模式，
+					此时当管道中有数据时，就会进行自动读取
+					 swoole_event_add($process->pipe, function($pipe) use ($process) {									
+											$recv = $process->read();  
+								});
+	(2)push()/pop()：
+		消息队列通信方式与管道不可共用。消息队列不支持EventLoop，使用消息队列后只能使用同步阻塞模式
+			通过调用 useQueue(),开启 队列模式，可调用 push() 和 pop() 写入和读取 队列中的数据
+		a.useQueue(int $msgkey = 0, int $mode = 2)
+				$msgkey是消息队列的key，默认会使用ftok(__FILE__, 1)作为KEY
+				$mode通信模式，默认为2，表示争抢模式，所有创建的子进程都会从队列中取数据
+			在1.9.2或更高版本中增加了swoole_process::IPC_NOWAIT的支持，可将队列设置为非阻塞。
+			在非阻塞模式下，队列已满调用push方法、队列已空调用pop方法时将不再阻塞立即返回	
+			$process->useQueue($key, $mode | swoole_process::IPC_NOWAIT);
+		b.swoole_process->statQueue() 查看消息队列状态
+			返回一个数组，包括2项信息
+			queue_num 队列中的任务数量
+			queue_bytes 队列数据的总字节数
+			array(2) {
+					  ["queue_num"]=>
+					  int(1)
+					  ["queue_bytes"]=>
+					  int(20)
+					}
+		c. freeQueue() 释放 进程队列中的数据
+3.其他方法：
+		(1)exit(int) 退出当前进程
+		(2)kill($pid, $signo = SIGTERM)
+			默认的信号为SIGTERM，表示终止进程
+			$signo=0，可以检测进程是否存在，不会发送信号	
+		(3)exec($execfile,array $args)
+			执行外部程序，并替换当前进程代码，该进程 和父进程 仍保持原有关系
+			外部程序路径必须为绝对路径
+			若需要 与外部程序 进行通信，则需  重定向 所在的子进程的输入输出
+			父进程 通过$process->write() 可发送数据到 替换后的子进程，
+			但需以 换行符结尾 表示 输入结束
+			$process = new \swoole_process(function(\swoole_process $worker){
+ 		
+ 			 //$data=fgets(STDIN);
+			 echo "in sub process:\n";
+ 
+    		//调用 exec()调用外部程序替换当前子进程
+		    $worker->exec("/usr/bin/php",['t.php']);
+ 	},true);
+ 	t.php:
+ 		//等待输入
+ 		fgets(STDIN);
+ 		//输出到父进程，父进程可通过 read() 读取
+  		echo 'end';
+						
+4.posix_getpid() 函数 获取 当前进程的PID
