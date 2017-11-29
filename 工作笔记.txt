@@ -89,23 +89,26 @@
 
 12.php include 文件名： 当该文件使用了return 语句来返回数据时， 则可以直接在引用文件中使用变量来获取
 
-	例：
-	 	a.php
-		return array('abc'=>123,'ert'=>'.pph');
+			例：
+				a.php
+				return array('abc'=>123,'ert'=>'.pph');
 
-		b.php
-		$a = include 'a.php';
-	在ThinkPHP配置文件中，可以直接使用array_merge(）来引用自定义的其他配置文件，但，当需引用嵌套的多个引用文件时，则来接受的使用的变量名不能重复，否则会被覆盖：
-	如
-		conf1.php
-		return array('conf1'=>'1111');
-		conf2.php
-		$conf =array('conf2'=>'222');
-		return array_merge(include 'conf1.php',$conf);
-		conf3.php
-		$conf =array('conf3'=>'3333');
-		return array_merge(include 'conf2.php',$conf);
- 此时，在conf3.php 中定义的$conf 将不会有作用
+				b.php
+				$a = include 'a.php';
+			在ThinkPHP配置文件中，可以直接使用array_merge()来引用自定义的其他配置文件，
+			但，当需引用嵌套的多个引用文件时，则来接受的使用的变量名不能重复，否则会被覆盖：
+			如
+				conf1.php
+				return array('conf1'=>'1111');
+				conf2.php
+				$conf =array('conf2'=>'222');
+				return array_merge(include 'conf1.php',$conf);
+				conf3.php
+				$conf =array('conf3'=>'3333');
+				return array_merge(include 'conf2.php',$conf);
+		 此时，在conf3.php 中定义的$conf 将不会有作用
+	对于 引入 返回值的文件时，不能使用 require_once() 或 include_once() 
+		否则，在第一次引入该文件后，再次执行 该语句时，直接返回 true,而不会返回 文件中的返回值
 13.php array_slice 保留键值:
 	array_slice(array1,start,length,true); 第三个参数为true表示保留键值，默认为false
 14.sql语句 ，判断多个字段值，只获取最大的字段值
@@ -411,6 +414,10 @@ Domain=[BIGCLOUD] OS=[Unix] Server=[Samba 4.1.1]
 					}
 	
 		}
+	(5)设置 请求体 内容大小：
+			当在上传文件时，则可能 nginx 提示 413 Request Entity Too Large，
+				因为nginx默认上传文件的大小是1M
+			在http{}段中加入 client_max_body_size 20m; 20m为允许最大上传的大小	
 22. php 中 mixed preg_replace_callback ( mixed pattern, callback callback, mixed subject [, int limit] )
 	其中 callback 伪类型：
 		
@@ -470,7 +477,7 @@ Domain=[BIGCLOUD] OS=[Unix] Server=[Samba 4.1.1]
 	
 			则接受的数据为
 				 $_POST["grant_type"]="client_credentials";
-		(3)若 设置Content-Type是application/x-www-form-urlencoded， 但$data未数组，则在接受端接受的数据为
+		(3)若 设置Content-Type是application/x-www-form-urlencoded， 但$data为数组，则在接受端接受的数据为
 			
 			$_POST["------------------------------1956fa01a9d7\r\nContent-Disposition:_form-data;_name"]="\"grant_type\"\r\n\r\niuc\r\n------------------------------1956fa01a9d7--\r\n";
 
@@ -515,7 +522,7 @@ Domain=[BIGCLOUD] OS=[Unix] Server=[Samba 4.1.1]
  若在php 程序中使用'\tabc\n' 来添加数据时，则\t \n 将不会转义，即保存到数据库中的就是\tabc\n
 	因此 在替换时，则需要将\t \n 进行再次转义 \\t \\n
 	若使用 "\tabc\n", 则将保存到数据库中的是空白字符，则替换时 \t \n 不需要转义	
-
+	即 '' 中的 转义符不会被转义，即使 在拼接时： $s="abc".'\n'; 此时 $s 为 abc\n 而不是 abc换行符 
  在 textarea文本中输入的 换行符，在提交到后台仍为 换行符，而不会显示为\n，通过htmlspecialchars_decode转义，也不会将换行符进行转为<br/>标签
 	
 27.php类属性在定义 直接赋值时， 不能使用不能用函数，表达式之类的
@@ -643,3 +650,40 @@ $trMap = array(
 		header ( "Content-Transfer-Encoding: binary" ); // 告诉浏览器，这是二进制文件
 		header ( 'Content-Length: ' . filesize ( $zip_filename ) ); // 告诉浏览器，文件大小
 		@readfile ( $zip_filename );//输出文件;
+
+34.linux 删除软连接：
+	rm 文件名
+	当创建为 目录的软连接时，则在删除该软连接时，不能添加/为后缀，否则会表示要删除原连接目录，
+		并会提示 为目录，不能删除
+35. &#38382;&#39064; 实体转义为中文字符串：
+	html_entity_decode('&#38382;&#39064;',ENT_COMPAT,'utf-8')
+	在php 5.4之前必须指定 编码，否则无法正常反转义
+	ENT_COMPAT 只解码 双引号编码 而不会处理单引号 编码
+36. 
+	(1)使用PDOStatement 执行插入时，若除了指定的字段外的其他字段没有默认值时，则执行操作失败
+	(2)默认下 PDO 执行查询 失败时，会 发出 WARNING 警告，而不会抛出 异常，因此不能通过 try{}catch 进行捕捉
+		可以通过 设置 $pdo->setAttribute(\PDO::ATTR_ERRMODE,\PDO::ERRMODE_EXCEPTION);
+			此时可通过 try...catch 捕捉异常，但同时仍会 发出 WARNING 警告
+		或 设置 捕获Warring错误 处理函数：
+				error_reporting(E_ERROR | E_WARNING | E_PARSE); 
+				set_error_handler('displayErrorHandler');
+				define('MYSQL_CLOSE_ERR','MySQL server has gone away');
+			function displayErrorHandler($error, $error_string, $filename, $line, $symbols)
+			{
+				 $error_no_arr = array(1=>'ERROR', 2=>'WARNING', 4=>'PARSE', 8=>'NOTICE', 16=>'CORE_ERROR', 32=>'CORE_WARNING', 64=>'COMPILE_ERROR', 128=>'COMPILE_WARNING', 256=>'USER_ERROR', 512=>'USER_WARNING', 1024=>'USER_NOTICE', 2047=>'ALL', 2048=>'STRICT');
+				 //var_dump($error,$error_string);
+				  if($error == 2)
+				  {
+					  //warning
+					  //抛出 pdo connection
+					  if(false !== strpos($error_string, MYSQL_CLOSE_ERR))
+					  {
+						  throw new PDOException(MYSQL_CLOSE_ERR);
+						  return;
+					  }
+				  }
+			  
+			}
+37.使用 get 传递 json 字符串需 对 json字符串 使用urlencode编码
+			$json_str= json_encode($params);
+			$access_url=$url.'?params='.urlencode($json_str);
