@@ -174,4 +174,103 @@
 			swoole_timer_after函数是一个一次性定时器，执行完成后就会销毁	
 	(3) bool swoole_timer_clear(int $timer_id)
 			使用定时器ID来删除定时器
-5.																										 
+			
+5.异步Http/WebSocket客户端： swoole_http_client																										 
+	(1)构造函数：	
+			__construct(string $host, int port, bool $ssl = false)
+				$host目标主机的IP地址，
+				$host如果为域名底层需要进行一次DNS查询，
+				这是阻塞IO，请使用Swoole\Async::dnsLookup实现异步非阻塞	
+	(2)属性：
+			$body 请求响应后服务器端返回的内容
+			$statusCode 服务器端返回的Http状态码，如404、200、500等
+	(3)方法： 
+			a. setHeaders(array $headers);
+				  $headers必须为键值对应的数组
+			   setCookies(array $cookies) 
+				 设置Cookie
+			   setMethod(string $method)
+				 $method 必须为符合Http标准的方法名称，如果$method设置错误可能会被Http服务器拒绝请求
+			   setData(string $data)
+				$data 为字符串格式
+				设置$data后并且未设置$method，底层会自动设置为POST
+				未设置Http请求包体并且未设置$method，底层会自动设置为GET
+			b.发送请求：
+				get(string $path, callable $callback)
+				post(string $path, mixed $data, callable $callback)	
+				execute(string $path, callable $callback)
+				更底层的Http请求方法，需要代码中调用setMethod和setData等接口设置请求的方法和数据
+			
+		Swoole\Async::dnsLookup("www.baidu.com", function ($domainName, $ip) {
+						$cli = new swoole_http_client($ip, 80);
+						$cli->setHeaders([
+							'Host' => $domainName,
+							"User-Agent" => 'Chrome/49.0.2587.3',
+							'Accept' => 'text/html,application/xhtml+xml,application/xml',
+							'Accept-Encoding' => 'gzip',
+						]);
+						$cli->get('/index.html', function ($cli) {
+							echo "Length: " . strlen($cli->body) . "\n";
+							echo $cli->body;
+						});
+					});		
+		c.上传文件：addFile(string $path, string $name, string $filename = null,string $mimeType = null, int $offset = 0, int $length)
+				$path 文件的路径，必选参数，不能为空文件或者不存在的文件
+				$name 表单的名称，必选参数，FILES参数中的key
+				$filename 文件名称，可选参数，默认为basename($path)
+			$cli = new \swoole_http_client("127.0.0.1",80);
+			$cli->setHeaders(['User-Agent'=>'swoole']);
+			//$cli->addFile('/home/sofar/share/swoole-wiki.png','upload');
+			
+			$cli->addFile('/home/sofar/share/20161220143530_1358_.mp4','upload2');
+
+			$cli->post("/upload.php",['name'=>'sofar','age'=>43],function($cli){
+
+				echo $cli->body;
+			});
+			echo "waiting...\n";
+		说明：
+			在测试中 当上传多个文件时， 
+			返回 响应结果为  -3 表示 客户端请求发出后，服务器强制切断连接
+		
+		d.下载文件 ：
+			download(string $path, string $filename, callable $callback,  int $offset = 0);
+			$path URL路径
+			$filename 指定下载内容写入的文件路径，会自动写入到downloadFile属性
+			$callback 下载成功后的回调函数
+		测试中 并不支持 $offset 参数，从而无法实现 断点下载
+				$file=__DIR__.'/video1.mp4';
+				//设置 超时时间
+				$cli->set(['timeout'=>60]);
+				$cli->setHeaders([
+					'Host'=>'localhost',
+					'User-Agent'=>'Chrome/49.0.2587.3',
+					'Accept'=>'',
+					'Accept-Encoding'=>'gzip',
+					// 'Range'=>"bytes=$offset-",
+					
+				]);
+				$cli->download('/abc.mp4',$file,function($cli){
+					var_dump($cli->downloadFile);
+					var_dump($cli->statusCode);
+				});
+		说明：	对于较大的文件，则需设置 超时时间，否则 只能下载一部分	
+		
+	 e.访问 webSocket:
+			upgrade(string $path, callable $callback)
+				发起WebSocket握手请求，并将连接升级为WebSocket
+			在 调用 upgrade方法前，必须设置onMessage回调函数	
+			$cli->on('message',function($cli,$frame){
+				var_dump($frame);
+			});
+			$cli->upgrade('/',function($cli){
+				echo $cli->body;
+				$cli->push("hello world");
+			});
+	说明：	
+		(1) push(string $data, int $opcode = WEBSOCKET_OPCODE_TEXT_FRAME, bool $finish = true)
+			向WebSocket服务器发送数据,
+			必须在upgrade事件回调成功触发之后才能执行
+			$data 要发送的数据内容，默认为UTF-8文本格式，如果为其他格式编码或二进制数据，请使用WEBSOCKET_OPCODE_BINARY
+			$opcode操作类型，默认为WEBSOCKET_OPCODE_TEXT_FRAME表示发送文本
+			$opcode必须为合法的WebSocket OPCODE，否则会返回失败，并打印错误信息opcode max 10
