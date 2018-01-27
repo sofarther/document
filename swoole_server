@@ -470,7 +470,7 @@ Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits"
 						若设置了onRequest回调，websocket服务器也可以同时作为http服务器，
     	   
 			    II.属性 $connections 保存连接到该服务器的所有客户端连接fd，
-			    		
+			    		包括所有连接，不仅只有websocket的客户端连接fd
 			    		在  \swoole_server 中定义， 为swoole_connection_iterator 对象
 			    		只能通过 foreach 进行遍历, 不能通过索引访问
 			    		foreach($server->connections as $key=>$val)
