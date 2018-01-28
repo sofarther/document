@@ -22,7 +22,12 @@ extern "C" {
        	extension.add<my_func>("my_func");
 	extension.add<out>("out");
         extension.add<notice>("notice");
-	extension.add<out_params>("out_params"); 
+        extension.add<out_params>("out_params",{
+                Php::ByVal("a",Php::Type::Numeric),
+                    Php::ByVal("b",Php::Type::String),
+                    Php::ByVal("c",Php::Type::Array),
+                    Php::ByVal("d",Php::Type::Object)
+            }); 
         // return the extension
         return extension;
     }
