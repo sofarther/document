@@ -29,7 +29,7 @@ NAME				=	test
 #	one for each extension. Use this variable to specify this directory.
 #
 
-INI_DIR				=	/etc/php5/conf.d
+#INI_DIR				=	/etc/php5/conf.d
 
 
 #
@@ -128,7 +128,7 @@ ${OBJECTS}:
 
 install:		
 						${CP} ${EXTENSION} ${EXTENSION_DIR}
-						${CP} ${INI} ${INI_DIR}
+#						${CP} ${INI} ${INI_DIR}
 				
 clean:
 						${RM} ${EXTENSION} ${OBJECTS}

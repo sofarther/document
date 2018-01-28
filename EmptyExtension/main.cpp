@@ -16,10 +16,13 @@ extern "C" {
     {
         // static(!) Php::Extension object that should stay in memory
         // for the entire duration of the process (that's why it's static)
-        static Php::Extension extension("yourextension", "1.0"); //设置扩展名
+        static Php::Extension extension("test", "1.0");
         
         // @todo    add your own functions, classes, namespaces to the extension
-       	extension.add<my_func>("my_func"); 
+       	extension.add<my_func>("my_func");
+	extension.add<out>("out");
+        extension.add<notice>("notice");
+	extension.add<out_params>("out_params"); 
         // return the extension
         return extension;
     }
