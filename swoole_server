@@ -575,4 +575,151 @@ Sec-WebSocket-Extensions: permessage-deflate; client_max_window_bits"
 	 	说明：
 	 		在 客户端判断是否为 WebSocket连接时，是通过 Swoole\Request 的isWebSocket() 方法
 	 			在该方法中 通过判断头部信息是否有 Upgrade 字段，且该字段小写转化后为 websocket
-	 				来确定的 				
+	 				来确定的 	
+3. 搭建 长连接服务器：
+		默认下 swoole_server 服务器 可支持客户端进行长连接
+		
+		(1)使用 应用层的心跳检测 保持连接：
+			不支持 TCP 协议的 KEEP-ALIVE 心跳检测，客户端必须定时发送心跳包
+			
+			a.自动检测
+			$serv->set(array(
+				'heartbeat_check_interval' => 5,
+				'heartbeat_idle_time' => 10,
+			));	
+			
+			每5秒侦测一次心跳，一个TCP连接如果在10秒内未向服务器端发送数据，将会被切断
+			
+			b. 服务端 手动检测 ：
+					swoole_server::heartbeat()函数手工检测心跳是否到期
+					函数会返回闲置时间超过heartbeat_idle_time的所有TCP连接
+				若设置 heartbeat_check_interval 参数，则 会直接关闭 超时的连接，而不会返回
+				
+					$server->tick(1000, function($id) use ($server) {
+						$closeFdArr = $server->heartbeat(false);
+						foreach($closeFdArr as $fd) {
+							$closeRs = $server->close($fd);
+						}
+					 });
+				其中 :
+					swoole_server::tick定时器不能在swoole_server->start之前使用
+					只能 在  onReceive 或 onWorkerStart中 回调函数中调用
+	
+		(2)	通过 TCP 协议层的 KEEP-ALIVE 心跳 检测	:
+			  不能 设置 服务器的 应用层 检测，否则 客户端 到期后将会被关闭
+			   即 只 在应用层如果对于死链接周期不敏感或者没有实现心跳机制 时有效
+			   
+			  默认下可支持 TCP 的KEEP-ALIVE 心跳， 可修改参数 ：
+			  	在server_swoole_set中增加
+			  	open_tcp_keepalive=>1表示启用tcp keepalive
+    			  tcp_keepidle 单位秒，连接在n秒内没有数据请求，将开始对此连接进行探测
+    			  tcp_keepcount  探测的次数，超过次数后将close此连接	
+    			  tcp_keepinterval 探测的间隔时间，单位秒
+    			  
+    			  $http = new swoole_http_server("127.0.0.1",9505);
+
+					$http->set(array(
+					   
+						'open_tcp_keepalive'=>1,
+						'tcp_keepidle'=>10,
+						'tcp_keepcount'=>5,
+						'tcp_keep_interval'=>5,
+					));
+					$http->on("connect",function($server,$fd,$reactor_id){
+						echo "{$fd} connect\n";
+
+					});
+					$http->on('request',function($request,$response) use($http)
+					{
+						foreach($http->connections as $fd)
+						{
+							echo $fd."\n";
+							$http->send($fd,json_encode($request->get));
+						}
+						$response->end("done");
+					});
+					$http->on('close',function($server,$fd,$reactor_id){
+						echo "{$fd} close\n";
+					});
+
+					$http->start();
+
+		  客户端： 可直接使用 swoole_client 指定 长连接标识
+		  		 $client = new swoole_client(SWOOLE_TCP|SWOOLE_KEEP);
+
+				$client->connect('127.0.0.1',9505);
+					while(true)
+					{   
+
+					var_dump($client->recv(10,1));
+					sleep(5);
+					}   
+
+		     但无法 抓取到 其心跳 检测记录
+		     可通过 C 实现客户端 设置 心跳参数 并进行连接：
+		     
+		     		 ////KeepAlive实现，单位秒
+		//下面代码要求有ACE,如果没有包含ACE,则请把用到的ACE函数改成linux相应的接口
+		int keepAlive = 1;//设定KeepAlive
+		int keepIdle = 3;//开始首次KeepAlive探测前的TCP空闭时间
+		int keepInterval = 3;//两次KeepAlive探测间的时间间隔
+		int keepCount = 10;//判定断开前的KeepAlive探测次数
+
+		if(setsockopt(sock,SOL_SOCKET,SO_KEEPALIVE,(void*)&keepAlive,sizeof(keepAlive)) == -1)
+		{
+
+		}
+
+		if(setsockopt(sock,SOL_TCP,TCP_KEEPIDLE,(void *)&keepIdle,sizeof(keepIdle)) == -1)
+		{
+
+		}
+
+		if(setsockopt(sock,SOL_TCP,TCP_KEEPINTVL,(void *)&keepInterval,sizeof(keepInterval)) == -1)
+		{
+
+		}
+
+		if(setsockopt(sock,SOL_TCP,TCP_KEEPCNT,(void *)&keepCount,sizeof(keepCount)) == -1)
+		{
+
+		}
+
+	 //连接服务器
+	 if(connect(sock,(struct sockaddr *)&saddr,sizeof(struct sockaddr_in))<0){
+		  perror("connect");
+		  exit(1);
+	 }
+	 
+	 
+		  可以通过 tcpdump 程序 检测 数据的发送和接受
+		  suod tcpdump -i any tcp port 9505
+		   输出格式：
+		   	11:26:27.328986 IP localhost.34146 > localhost.9505: Flags [S], seq 3504908924, win 43690, options [mss 65495,sackOK,TS val 3938180 ecr 0,nop,wscale 7], length 0
+11:26:27.328995 IP localhost.9505 > localhost.34146: Flags [S.], seq 3706495767, ack 3504908925, win 43690, options [mss 65495,sackOK,TS val 3938180 ecr 3938180,nop,wscale 7], length 0
+11:26:27.329006 IP localhost.34146 > localhost.9505: Flags [.], ack 1, win 342, options [nop,nop,TS val 3938180 ecr 3938180], length 0
+11:26:27.331937 IP localhost.34144 > localhost.9505: Flags [P.], seq 1:455, ack 1, win 342, options [nop,nop,TS val 3938181 ecr 3938180], length 454
+11:26:27.331954 IP localhost.9505 > localhost.34144: Flags [.], ack 455, win 350, options [nop,nop,TS val 3938181 ecr 3938181], length 0
+11:26:27.332099 IP localhost.9505 > localhost.47828: Flags [P.], seq 56:73, ack 1, win 342, options [nop,nop,TS val 3938181 ecr 3897361], length 17
+11:26:27.332109 IP localhost.47828 > localhost.9505: Flags [.], ack 73, win 342, options [nop,nop,TS val 3938181 ecr 3938181], length 0
+11:26:27.332159 IP localhost.9505
+11:26:27.332220 IP localhost.9505 > localhost.34144: Flags [P.], seq 18:174, ack 455, win 350, options [nop,nop,TS val 3938181 ecr 3938181], length 156
+11:26:27.332225 IP localhost.34144 > localhost.9505: Flags [.], ack 174, win 350, options [nop,nop,TS val 3938181 ecr 3938181], length 0
+11:26:27.333128 IP localhost.34144 > localhost.9505: Flags [F.], seq 455, ack 174, win 350, options [nop,nop,TS val 3938181 ecr 3938181], length 0
+11:26:27.333280 IP localhost.9505 > localhost.34144: Flags [F.], seq 174, ack 456, win 350, options [nop,nop,TS val 3938181 ecr 3938181], length 0
+11:26:51.382734 IP localhost.9505 > localhost.57462: Flags [.], ack 1, win 342, options [nop,nop,TS val 3944194 ecr 3938181], length 0
+11:26:54.390724 IP localhost.57462 > localhost.9505: Flags [.], ack 46, win 342, options [nop,nop,TS val 3944946 ecr 3944194], length 0
+11:26:54.390733 IP localhost.9505 > localhost.57462: Flags [.], ack 1, win 342, options [nop,nop,TS val 3944946 ecr 3938181], length 0
+11:26:57.398727 IP localhost.57462 > localhost.9505: Flags [.], ack 46, win 342, options [nop,nop,TS val 3945698 ecr 3944946], length 0
+1
+
+	说明：
+		localhost.34144 > localhost.9505 表示通信的流向，34144是客户端，9505是服务器端
+		[S] 表示这是一个SYN请求
+		[.] 表示这是一个ACK确认包，(client)SYN->(server)SYN->(client)ACK 就是3次握手过程
+		[P] 表示这个是一个数据推送，可以是从服务器端向客户端推送，也可以从客户端向服务器端推
+		[F] 表示这是一个FIN包，是关闭连接操作，client/server都有可能发起
+		[R] 表示这是一个RST包，与F包作用相同，但RST表示连接关闭时，仍然有数据未被处理。可以理解为是强制切断连接
+		win 342是指滑动窗口大小
+		length 12指数据包的大小
+	 因此可看到 客户端 57462 每隔 3 秒会 发送 心跳检测 
