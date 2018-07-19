@@ -1,0 +1,61 @@
+1.信号：
+   os/signal 、syscall 包
+    (1)signal.Notify()将 系统发送到当前进程 的信号 通知调用该函数 的调用方
+	    并 将 当前进程接受到的信号 放入到 通道 中
+	   在接受到 自行处理的信号后，os/singal 包的程序，将其封装为 syscall.Signal 类型
+	   并 放入到signal 接受通道中,
+	  signal.Notify(chan <- os.Signal, sigs1 ...os.Signal)
+	   第一个参数 为 通道类型， chan <- os.Signal表示 值能传递os.Signal 类型
+	         其中 <-  表示 只能向该通道放入 值，不能读取
+	   第二个参数为 可变参数，指定 要自行处理的信号
+	   当 省略 第二个参数时则 会将 所有 除 SIGKILL 和 SIGSTOP 信号外的全部信号 进行自行处理
+
+	(2) signal.Stop(chan <- os.Signal) 
+	    取消 指定通道 接受 自行处理信号 行为，恢复 系统默认处理 信号行为
+	(3) close() 关闭指定通道
+	
+	在 os/signal 内部，是通过 signal 接受的通道 作为 唯一标示符，
+	   将其 作为 键名，键值 为 该通道 可接受 的 信号集合，
+
+2.向指定进程 发送信号：
+	    (1)获取 指定进程 ID：
+		   通过 系统命令 管道实现：
+		   位于  os/exec 包
+		   // 创建 系统命令对象 数组
+		     cmds := []*exec.Cmd{
+				exec.Command("ps", "aux"),
+				exec.Command("grep", "cpt6_signal"),
+
+				exec.Command("grep", "-v", "grep"),
+				exec.Command("grep", "-v", "run"),
+				exec.Command("awk", "{print $2}"),
+			}
+		// 依次 通过 管道输入到下个命令处理，
+		var stdin io.WriteCloser
+	    var stdout io.ReadCloser
+		// 获取命令对象 的输出管道，类型 为 io.ReadCloser
+		stdout, err = cmds[i].StdoutPipe() 
+		//执行 命令
+		if err = cmds[i].Start(); err != nil {
+			return res, err
+		}
+		//当前命令执行后，需关闭当前命令的输入端
+		//否则将 一直 等待 上级管道的输出
+		if err := stdin.Close(); err != nil {
+				return res, err
+			}
+		//获取下个命令对象 的输入管道，类型 为 io.WriteCloser
+		stdin, err = cmds[i+1].StdinPipe()
+		//将 输出管道 与下个命令管道 连接：
+		outputBuf := bufio.NewReader(stdout)
+		outputBuf.WriteTo(stdin)
+		
+		(2)通过 PID 创建 进程对象：
+		    *os.Process 类型
+			//通过PID 获取 进程对象
+			//pid 为 int 类型
+			proc, err := os.FindProcess(pid)
+			//向指定对象发送信号
+			err = proc.Signal(syscall.SIGINT)
+   
+	   

@@ -1,0 +1,122 @@
+1.函数：
+   函数 是 一等类型，即 可以将函数作为返回值 、参数和变量 使用
+   支持闭包
+  (1) 定义：
+     命名函数：
+     func func_name(param1 type,param2 type,...)(result1 type,result2 type,...) {
+	   ...
+	   return
+	 }
+	 匿名函数：
+	  func (param1 type,param2 type,...)(result1 type,result2 type,...) {
+	   ...
+	   return
+	 }
+	 说明：
+	   a. 当 函数没有返回值时，结果声明列表可省略
+	       结果声明列表 可只使用 类型进行声明，这样，在函数返回语句中必须按照声明的顺序进行返回
+                  当只有一个返回类型时，则可以省略()		 
+		 当 结果声明列表 带有 返回变量名时，则会对变量 按照其类型 初始化为默认值
+		    此时 函数 只需要使用 return 即可，不需要 指定返回的变量
+	   b. 可变参数：
+	       (name string,age int, gender string,informations ...string)
+		   即 informations 类型为 ...string可变长度
+	(2)函数变量 ：
+	     可以声明 函数变量 ，需声明函数 参数列表 和结果列表，
+	        函数 参数列表 和结果列表作为 函数的签名，
+		   函数变量可以赋值 相同的函数签名的函数
+		   //声明函数变量 ,参数名 可省略，只使用参数类型
+		   var f func(int, int) (int, int, string)
+        //定义函数
+		func add(x int, y int) (add_res int, sub_res int, s string) {
+           //分别会初始化为 0 0 ""
+			fmt.Println(add_res, sub_res, s)
+           //对结果变量赋值
+			add_res, sub_res, s = x+y, x-y, strconv.Itoa(x)+","+strconv.Itoa(y)
+			//return 不需要 带返回 表达式
+			return
+			// 也可以 不使用 结果变量，而返回 指定的表达式
+			//return x + y, x - y, s
+		}
+	   
+	    f = add //对函数变量赋值
+		//调用
+		fmt.Println(f(4, 7))
+	(3)将 函数作为 返回值：
+	    返回 类型 为 函数
+	   func generate_func(m map[string]bool) func(string) bool {
+	       //闭包
+			return func(k string) bool {
+			  // 字典作为 引用传递
+				delete(m, k)
+				return m[k]
+			}
+		}
+		说明：
+		   返回结果类型 需声明为 一个 函数 类型
+			 var m = map[string]bool{"Vim": true, "Emacs": true, "Notepad": false, "LiteIde": true}
+			 var f = generate_func(m)
+			 fmt.Println(f("vi"), f("gedit"), f("Vim"))
+			fmt.Println(len(m), f("Vim"))
+	 (4)匿名函数 可直接进行调用：
+	     func (x int, y int) int{
+		   return x * y
+		 }(10,20)
+		 
+2.方法：
+     附属在某个 自定义数据类型的函数，
+	 即 与 某个接受者关联，在声明时需指定 关联的自定义类型
+	 (1) 规则：
+	     a. 接受者声明的类型 必须为 自定义类型，或自定义类型指针类型，
+		 b. 方法所属的数据类型的声明必须 与该方法声明处于同一个代码包中
+		 c. 值方法 和指针方法：
+		     接受者为某个自定义数据类型的方法时，则为值方法
+			 接受者 为某个自定义数据类型 的指针的 方法为 指针方法
+			 I. 自定义数据类型的方法集合 只包含与其关联的值方法，
+			    而 自定义数据类型指针类型的方法 包含 与其关联的所有 值方法和指针方法
+				实际中 值调用 方法时， obj.m() 实际上 是(&obj).m() 的缩写，
+                   因此 仍可以 调用 到指针方法 m()				
+			 II. 当接受者类型 不是引用类型时，则 值方法中 对接受者的修改 不会影响到 调用者
+			      但 指针方法 会影响到调用者，
+				  对于 引用类型，则 值方法 也会影响到调用者
+				  
+	(2)定义：
+	   //自定义 类型
+	    type MyString string
+		//指定 接受者类型 和接受者标示符
+		func (self MyString) GetFirst() (res string) {
+		   //在方法中 使用 接受者标示符
+			res = string(self[0])
+			self ="test"
+			return
+		}
+		//调用
+		var myStr MyString
+		myStr = "abcd"
+		fmt.Println(myStr.GetFirst())
+		fmt.Println(myStr) //不变
+		//定义MyString 指针方法
+		func (self *MyString) Test() (res string) {
+		  res = *self
+		  *self = "test"
+		  return 
+		}
+		//此时 调用后 原字符串值将被修改
+		
+		//切片类型 为引用类型
+		type MyIntSlice []int
+		func (self MyIntSlice) Max() (result int) {
+			result = self[0]
+			l := len(self)
+			for i := 1; i < l; i++ {
+				if self[i] > result {
+					result = self[i]
+				}
+			}
+			return
+		}
+		
+		//调用
+        myInt := MyIntSlice{23, 54, 45, 65, 23, 53}
+
+	     fmt.Println(myInt.Max())		

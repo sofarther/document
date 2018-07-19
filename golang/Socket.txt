@@ -1,0 +1,82 @@
+位于 net 包
+1.流程：
+  (1)监听 地址和端口:
+       func Listen(net,laddr string)(Listener,error)
+	   其中  net 指定 Socket 协议：
+				 tcp tcp4 tcp6 
+				 udp udp4 udp6
+				 unix unixgram unixpakcet
+			 laddr 表示 地址和端口：形式：
+			     127.0.0.1:9000
+		 返回 类型为 net.Listener
+   (2)接受 连接：
+        net.Listener 的 Accept() 方法
+		返回 值：
+		  第一个返回值 类型 为 net.Conn 表示连接的客户端
+		  第二个返回值 类型为 error
+		该返回 会阻塞，直到有客户端连接，才会返回
+	(3)连接:
+         Dial(net,saddr string)(Conn,error)
+         连接到指定的地址，返回类型为 net.Conn 表示服务端	
+         DialTimeout(net,saddr string,timeout time.Duration)(Conn,error)
+          指定 超时时间
+           其中  time.Duration 单位 为 纳秒，实际为 int64 类型别名
+               可通过 time.Second 或 time.Millisecond 进行值转化
+   			conn, err := net.DialTimeout(SERVER_NETWORK, SERVER_ADDRESS, 2*time.Second)   
+			
+2. Go语言 的Socket API 在底层获取的是一个非阻塞式 的Socket     
+    因此 
+	  在 等待 客户端连接 是非阻塞的，
+	在 socket 的读取 是非阻塞的，
+	  当 接受的缓冲区 没有 数据时，则返回 错误 EAGAIN,
+	  当  接受的缓冲区 有 数据时，则 可能一次读取部分数据，
+	      因此 需循环读取
+	 在 socket 写入 同样是非阻塞的，
+	    当 发送缓冲区 没有空间时，则 返回 EAGAIN 错误，
+		当 发送缓冲区 有空间，但不足全部写入时，则会部分写入，
+		  因此 需循环写入
+    由于 Go语言 的Socket API 进行了一些封装，
+	 因此 对于 如 接受连接 和 写入操作 在调用时，行为 等同于阻塞式的
+	  但 保存了 部分读的特性，因此 需要处理读取时的非阻塞
+	  
+3. net.Conn 类型 部分方法：
+    (1) Read(b []byte)(n int,err error)
+	   返回 读取的 字节数，
+	     当 该对象对应的TCP 连接的另一端 关闭，则会返回错误 io.EOF,
+		 因此可以将 该连接关闭
+	  net.Conn 实现了 io.Reader 接口的 Read() 方法，因此
+	   可以 通过 bufio.NewReader() 将 net.Conn 封装 
+	    reader := bufio.NewReader(conn)
+		可通过 ReadBytes() 指定 一个消息边界，读取数据
+		line,err :=reader.ReadBytes('\n')
+	(2)Write(b []byte)(n int,err error)
+      	屏蔽了 非阻塞式Socket 接口的细节，因此不需要作其他处理，
+		  只需要 判断可能发生的超时 错误
+	   net.Conn 实现了 io.Writer 接口的 Write() 方法，因此
+          可 通过 bufio.NewWriter() 封装
+		  writer := bufio.NewWriter(conn)
+	(3) Close()error
+	    关闭当前连接
+    (4) LocalAddr() 和 RemoteAddr()
+	    返回  net.Addr 类型，
+		 该类型 包含两个方法：
+		   Network() string 返回 协议名称 ，和 监听、连接 时指定的协议名称相同
+		   String() string 返回 地址和端口
+	(5) SetDeadline() SetReadDeadline() SetWriteDeadline()
+	    参数 为 time.Time 类型，
+		     指定超时时间，该时间为 绝对时间，而不是 时间长度
+			 当 指定的时间为 0时，则表示 取消超时设置
+		返回值为 error,
+		   
+		SetDeadline() 设置 当前连接上的 I/O操作的超时时间
+		               其中操作不 仅限于读写操作
+			 将会影响到之后的所有I/O操作，
+			 当 在通过 循环读取数据时，
+			  由于设置的 时 绝对时间，因此需 在每次循环开始 重新设置该时间，
+			  否则 可能会由于 读取循环次数过多，导致读取超时
+			  
+		 conn.SetDeadline(time.Now().Add(2 * time.Second))
+		 取消 超时设置：
+          conn.SetDeadline(time.Time{})	
+      SetWriteDeadline() 设置 写操作的超时时间，
+             当 写入 返回 超时错误时，可能部分数据 已写入	  

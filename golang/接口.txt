@@ -1,0 +1,209 @@
+1.接口：
+  接口 是 一个 方法的集合，即由若干个方法声明 组成
+  当 一个数据类型(或 与其对应的指针类型) 附带的方法集合，是某个接口的方法集合的超集，
+  则 该类型实现了该接口
+  (1)定义接口：
+      type interface_name interface{
+	     F1() int
+		 F2(i,j int) bool
+		 F3(p string,i int) string
+		 ...
+	  }
+	  说明：
+	    a. 接口可以进行嵌套，如
+		   在 sort 包中定义了  接口
+		     type Interface interface {
+			      Len() int
+				  Less(i,j int) bool
+				  Swap(i,j int)
+			 }
+			 即 该接口名 为 Interface
+		  可自定义一个接口：
+		    type Sortable interface {
+				sort.Interface  //嵌套 sort.Interface 接口
+				Sort()
+			}
+        此时 Sortable 接口 的方法为 Len Less Swap Sort
+	  b. 接口嵌套，不能嵌套自身，也不能间接递归嵌套
+	  c. interface{} 表示 一个空接口，因为不包含任何方法，所以 所有Go 数据都实现了该接口
+ (2)实现接口：
+      a.自定义 类型：
+	    type SortableStrings [5]string
+
+	  b.自定义类型 实现 Sortable 接口
+
+		func (self SortableStrings) Len() int {
+			return len(self)
+		}
+
+		func (self SortableStrings) Less(i, j int) bool {
+			return self[i] < self[j]
+		}
+		func (self SortableStrings) Swap(i, j int) {
+			self[i], self[j] = self[j], self[i]
+		}
+		func (this SortableStrings) Sort() {
+			sort.Sort(this)
+		}  
+		
+	说明：
+	    I 当 SortableStrings 没有实现 Sort() 方法时，则
+		   _, ok := interface{}(SortableStrings{}).(sort.Interface)
+			fmt.Println(ok)  //true SortableStrings 实现了 Sort.Interface 接口
+			_, ok2 := interface{}(SortableStrings{}).(Sortable)
+			fmt.Println(ok2) //false
+		II. 当 SortableStrings 实现 Sort() 方法时，则 
+		      ok2 也为 true
+  (3)调用 方法：
+        ss := SortableStrings{"abcd", "234", "edked", "g", "12"}
+	    ss.Sort()
+		说明：
+		  a. 由于 数组为值传递,因此 在调用 Sort() 方法后，数组的没有排列
+		  b. 可通过 将 接口中 的 Sort() 和 Swap()  使用 *SortableStrings 作为接受者
+		      此时 SortableStrings 类型 将没有 实现了 Sort.Interface 接口
+               也 没有实现 	Sortable 接口	
+          c.索引表达式  和 len() 支持 数组 指针 和数组值,因此 不需要修改 方法的实现代码	，
+             但 索引表达式  和 len() 不支持 切片 的指针类型，
+			 因此 若 自定义类型 潜在类型为 切片类型时，则由于是引用传递，因此不需要定义指针方法
+			  就可以实现 排序效果
+			 另，若定义指针方法，则在指针方法中不能直接 对切片指针 使用索引表达式  和 len()
+			 
+2.结构体：
+    (1)定义：
+	     type struct_name struct{
+		    Name string
+			age int
+			Id int
+			...
+		 }
+		 当字段名 首字符大写时，则可以在结构体外任何地方 按照属性的方式访问该字段值
+		 否则，则为包级私有，即 只能在结构体所属 的包中进行访问
+		a. 匿名字段：
+		   在声明字段时，省略字段名，只使用其类型表示，
+		   匿名字段 的类型必须是 数据类型名 或 一个 非接口接口对应的指针类型 名
+		    结构体可直接通过 该类型名 访问该字段，
+			 其中 ，指针类型 则不包含*,若 为其他结构体或接口等中的成员时，则
+			   不包含 成员的限定标示符
+			   type Anomymities struct {
+			     T1
+				 *T2
+				 P.T3
+				 *P.T4
+			   }
+			   则 结构体 的字段名 分别为  T1 T2 T3 T4
+		b. 当 字段类型为 接口类型时，则表示 该字段接受 实现该接口的动态类型
+		    且 该动态类型 所附带的方法 将 与结构体类型关联，即可直接通过结构体调用其中的方法
+			因此 该结构体 也是 该接口的实现类型，
+			但 在 实际调用中，传入到 接口方法 中的接受者类型 仍为 字段保存的动态类型，而不是该结构体类型
+			
+				type Sequence struct {
+					Sortable   //接口类型
+					sorted bool
+				}
+				//实现 Sortable 接口类型
+				ss := SortableStrings{"abcd", "234", "edked", "g", "12"}
+				//初始化 结构体
+				seq := Sequence{ss, false}
+				seq.Sort() //调用  SortableStrings.Sort() 方法，self参数值 为SortableStrings 类型
+				fmt.Printf("Sortable strings : %v\n", ss)
+				_, ok4 := interface{}(seq).(Sortable) //结构体为 接口 的实现类型
+				fmt.Println(ok4) //true
+            			 
+		 I. 当结构体 定义了 与 接口中方法名相同 的方法时，则 接口中的方法将会隐藏，
+		     通过 结构体变量 调用时，会调用 结构体定义的方法,
+			 可通过 链式引用 调用 接口中的方法
+			 func (self *Sequence) Sort() {
+				self.Sortable.Sort() // 调用接口方法
+				self.sorted = true
+				_, ok := interface{}(*self).(SortableStrings)
+				fmt.Println(ok) // false
+				_, ok1 := interface{}(*self).(Sequence)
+				fmt.Println("in Sequence: is Sequence: ", ok1) //true
+			}
+			此时 方法的关联类型 为 *Sequence，而不是 字段保存的动态类型，
+			  其中 在判断 self 是否为 Sequence, 需 使用 *self
+			  
+		II.若 结构体 定义了 与 接口中方法名 相同，但函数签名不同时，则 结构体变量只能调用结构体定义的方法
+			  而不能调用 接口中的方法
+			   func (self *Sequence) Sort(reverse bool) {
+				self.Sortable.Sort() // 调用接口方法
+				self.sorted = true
+				_, ok := interface{}(*self).(SortableStrings)
+				fmt.Println(ok) // false
+				_, ok1 := interface{}(*self).(Sequence)
+				fmt.Println("in Sequence: is Sequence: ", ok1) //true
+			}
+			此时 将不能 直接使用 seq.Sort() 调用，必须传入 bool 参数 进行调用
+	   III.当 接口字段 的 实现类型 在实现 接口时，有使用 实现类型的指针类型 作为接受者 时，
+             则 在 对 该字段 赋值时，需使用 该实现类型指针类型，而不能使用 实现类型本身	   
+	  c. 对于结构体S 和一个非指针类型 T :
+	      若 S 中包含一个嵌入类型 T，则 S *S 的方法集合中都会包含 接受者为 T 类型的方法
+		     且 *S 的方法集合中还包含 接受者为 *T 的方法
+		  若 S 中包含一个嵌入类型 *T，则 S *S 的方法集合中都会包含 接受者为 T 或*T类型的方法
+		  
+	(2)匿名结构体：
+	     struct {
+		   a int
+		   b string
+		 }
+		 可 声明一个变量，并初始化
+		 var t  struct {
+		   a int
+		   b string
+		 }{0,"ssss"}
+		 
+	(3)结构体值表示方法：
+	    a. 指定字段名：
+		   Sequence{Sortable:ss,sorted:false},
+		   可部分字段赋值，顺序任意
+		b. 顺序赋值：
+		   Sequence{ss, false}
+		   必须按照声明顺序赋值，并不能省略字段
+		c.  Sequence{}
+		     全部字段 将初始化为 其类型对应的默认值
+	(4)Go语言中，只存在嵌入 而不存在继承的概念
+         因此 结构体中的嵌入的 类型 值不能赋值到 结构体类型变量
+       
+	    别名类型 也不包含 源类型中的任何方法
+        	type AliasSequence Sequence
+           as :=AliasSequence{Sortable:ss}		
+           as.Sort() // 将调用 as.Sortable.Sort() 方法，而不会调用 接受者为Sequence 的Sort()方法	
+   (5)模拟泛型：
+         通过 reflect.Type 获取动态类型，同一接口实现类型 支持不同类型 操作
+		 
+ 3.指针类型：
+    (1) 定义：
+          在 任何一个有效的数据类型 的左侧添加* 得到 该类型的指针类型
+           var pInt *int 
+           var pSlice *[]int
+    (2) Go语言中，有一个 uintptr 类型用于存储 地址
+           32位或 64位， 根据架构有关，
+        在 unsafe 包中，有 ArbitraryType 类型，是一个 int 类型别名
+           该类型可	代表 任意 Go语言表达式的结果类型
+         另还有 Pointer 类型，代表 ArbitraryType 类型 的指针类型，
+		 Pointer 类型 可以与 地址 和 uintptr 类型相互转化
+		  var f float32 =23.23
+		  pointer := unsafe.Pointer(&f)
+		  
+		  uptr := uintptr(pointer)
+		  pointer2 := unsafe.Pointer(uptr)
+		 //将 unsafe.Pointer 类型转为 指定类型指针类型
+         	var pf *float32	=(*float32)pointer
+         //进而读取 地址保存的值
+            fmt.Println(*pf)
+   (3) 读取 结构体 指定的 字段值：
+         type Person struct {
+			Name string
+			Age  uint8
+		}   
+		 pp := &Person{"abc",43}
+		 var puptr  = uintptr(unsafe.Pointer(pp)
+		 //计算 Age 字段 与结构体的偏移量
+		 // pp.Age  可直接通过地址形式 访问字段
+		 var npp uintptr = puptr + unsafe.Offsetof(pp.Age)
+		 //转为 uint8 指针类型
+		 var age *uint8 = (*uint8)(unsafe.Pointer(npp))
+		 fmt.Println(*age)
+		 
+		由上可知：在结构体中任何字段 满足以下：
+		  uintptr(unsafe.Pointer(&s)) + unsafe.Offsetof(s.f) == uintptr(unsafe.Pointer(&s.f))

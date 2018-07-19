@@ -1,0 +1,89 @@
+3.原子操作：
+   位于 sync/atomic 包
+   可对 基本数据类型：
+      int32 int64 uint32 uint64 uintptr unsafe.Pointer 类型
+     进行 增减、比较并交换、载入、存储、交换 操作
+  (1) 增减：
+         //第一个参数需传入 要操作的 数的地址
+		 //第二个参数 为 增减的操作数
+          atomic.AddInt32(&num, 3)
+	      fmt.Println(num)
+		 在执行时，会将第二个参数 转为 与方法适应 的类型
+		 因此 在 对 uint32 uint64 执行 减法时，则 需使用 负数的补码值 作为无符号整数
+		     对于 字面量 或 常量，可通过 以下方式转化：
+			    atomic.AddUint32(&num2, -4&math.MaxUint32)
+               该形式 不能用于 变量，否则 & 操作 返回的类型 仍为 int 
+			 对于 变量，则 ：
+			    var op_num int32 = -4
+			    atomic.AddUint32(&num2, ^uint32(-op_num-1))
+				
+  (2) 比较并交换：
+        func CompareAndSwapInt32(addr *int32, old, new int32) (swapped bool)
+		先 判断 *int32 地址上保存的当前值 是否与 old 值相等
+            若相等，则 将 new 值 赋值到 *int32 地址上，返回 true
+             否则 则返回 false 			
+		CAS 操作 在频繁修改 某个值时，可能会造成 修改失败，因此一般 使用 循环 直到修改成功
+		   var num int32
+		   for {
+		       v := num 
+			   if atomic.CompareAndSwapInt32(&num,v,(v +5)) {
+			      break
+			   }
+		   }
+   (3)载入 ：
+        在 读取 某个变量值时，可能同时 该值被其他Goroutine 修改，
+		如 上式中  v:=num 语句，
+		  可通过  v := atomic.LoadInt32(&num) 实现 原子读取变量值
+	(4)存储： 
+	    func StoreInt32(addr *int32, val int32)
+		与 CompareAndSwapInt32() 不同的是 不会判断 旧值，而直接将 指定的值原子性保存到指定地址
+    (5)交换：
+	   func SwapInt32(addr *int32, new int32) (old int32)
+	   将新值 保存到指定地址上，并 返回 旧值
+4.sync.Once 类型:
+      用于 在多个 Goroutine 中调用相同函数时，保证该函数 只能调用 一次
+	   func (o *Once) Do(f func())
+	   接受 一个 没有参数 和返回值 的函数 
+	       var num int
+
+			sign := make(chan bool)
+			var once sync.Once
+
+			f := func(i int) func() {
+				return func() {
+					fmt.Println("Call Once Func")
+					num = num + i*2
+					sign <- true
+				}
+			}
+
+			for i := 0; i < 3; i++ {
+				fi := f(i + 1)
+				go func(f func()) {
+					fmt.Println("Start a Goroutine")
+					once.Do(f) //调用一次 f 函数
+				}(fi)
+			}
+         // 等待 三个信号发生，实际上 只有一个信号会正常发送，
+		 // 剩余的两个 则会超时
+			for j := 0; j < 3; j++ {
+				select {
+				case <-sign:
+					fmt.Println("Received a signal")
+				case <-time.After(100 * time.Millisecond):
+					fmt.Println("time out")
+				}
+			}
+          //只修改一次 值 
+			fmt.Printf("Num: %d\n", num)
+
+5.sync.WaitGroup:
+    方法：
+	  Add(int) 设置 计数值， 不能为负值
+	  Done() 计数值 减一， 计数值 变为负值，则会引发恐慌
+	  Wait() 检查 当前 计数值，若等于0 则立即返回，
+	                否则 阻塞 当前 流程，直到 计数值变为0，
+					 
+	  Add() 和Done()方法 在执行时，会判断 当前计数值是否为 0， 
+	      当为 0 时，则 会 唤醒 所有阻塞 的 Goroutine
+    

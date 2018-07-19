@@ -1,0 +1,160 @@
+一、数组：
+1.声明 ：
+   [n]T  
+ 其中 n 只能为 常量,当为 ... 时，则表示自动推断数组长度
+   数组 长度 是 数组类型 的一部分，即不同的长度的数组，即使元素类型相同，但仍为不同类型
+T 为 元素类型，可以为 任意有效的 Go 语言类型
+  例：
+    var arr [5]struct{Name string;Age uint8}
+   表示 数组元素为 匿名 结构体类型
+    即 arr 可保存 任何 {Name string; Age uint8} 复合元素的结构体类型
+	type Person struct {
+		Name string
+		Age  uint8
+	}
+	type Cat struct {
+		Name string
+		Age  uint8
+	}
+	//可保存 Person 和 Cat 结构体类型
+	arr[2] = Person{"abc", 32}
+	arr[4] = Cat{"dee", 1}
+	fmt.Printf("%s,%d\n", arr[2].Name, arr[2].Age)
+	fmt.Printf("%s,%d\n", arr[4].Name, arr[4].Age)
+   说明：
+     若 将 arr 声明为 命名结构体，则不能保存其他相同元素的结构体
+	  var arr [5]Person
+	  则不能保存 Cat 
+	
+ (1) 数组在传递时是 值传递
+			 func swap(arr [5]uint8) {
+			arr[4], arr[2] = arr[2], arr[4]
+			fmt.Printf("%d,%d", arr[2], arr[4]) //53 56
+			fmt.Println()
+		}
+		
+		   arr2 := [5]uint8{43, 44, 56, 23, 53}
+			swap(arr2)
+			fmt.Printf("%d,%d", arr2[2], arr2[4]) //56 53
+ (2)获取数组的长度：
+     len(arr)
+ (3) 支持多维数组 ：
+       arr := [3][4]{
+	     {34,24,23,54},
+		 {63,53,31,27},
+		 {86,38,21,55}
+	   }
+	 len(arr) //3 只计算 最外层 的数组长度
+	 内层数组的个数不能 使用 ... 代替
+二、切片：
+  [start:end] 
+   start 和 end 不能为负值
+    (1)变量声明 和赋值：
+	     var sl []uint8
+		 sl = []uint8{1,2,3,4,5,6,7,8,9,10}
+		 或：
+		 arr :=[10]uint8{1,2,3,4,5,6,7,8,9,10}
+		 sl = arr[3:8]
+		不能直接对数组常量进行切片：
+		  sl =[10]uint8{1,2,3,4,5,6,7,8,9,10}[3:8]
+	  一个切片的底层数据结构中 包含一个 指向底层数组指针类型值
+	   和 切片长度  切片容量 等值
+	   其中 对于 [start:end]
+	    则 切片长度 = end - start， 可通过 len() 函数返回
+		 切片中的索引值 范围 为 0~ len -1
+		  即 索引是从0开始，而不是切片在底层数组的总偏移量
+	(2)切片是引用传递：
+        func swap( sl []uint8) {
+		    var l int = len(sl)
+			
+			sl[0],sl[l -1] =sl[l -1],sl[0]
+			
+		}
+
+  		swap(sl)
+	(3)通过 切片 修改元素时，会影响到底层的数组元素，
+        进而会影响到 其他在该数组范围内的 切片
+        sl2 :=arr[2:9]
+        sl2[4] =34
+        fmt.Println(sl[3]) //34
+      同一数组 中的元素 在不同切片 中的索引 关系为：
+         S{中间切片的开始位置} + 当前切片索引 相等	
+		 其中 S{中间切片的开始位置} 表示从底层数组开始到当前切片中间切片开始位置的累加
+    (4)容量：
+	     默认为 父切片的容量或底层数组长度 - 当前切片开始位置
+         
+         即 该切片 容量 = 底层数组长度 - 切片 的开始位置索引值 -S{中间切片的开始位置} 
+		 因此 end 的最大值 等于 容量值
+         可通过 [start:end:cap_index] 指定 切片 容量，从而限制该切片能访问的底层数组的范围
+         
+		可通过 cap() 返回 切片 的容量值
+        cap(sl) // 7
+		说明： 
+		  在 定义切片时，start 、 end 和cap_index 为 在 父切片或底层数组 中的索引
+		  而 cap() 函数返回 的值 为切片 的容量值 = cap_index - start
+ 		  即 容量值在切片中的索引
+		  因此 sl4 := sl[start:cap(sl)] 在 切片时，start 和cap(sl) 在sl 的索引值
+		       而 cap(sl)索引  在 sl父切片 中 的 sl 开始位置 + cap(sl)
+			   这样 与 sl 在定义时 指定的 end 在其父切片的意义相同
+			   
+       a. 扩展切片长度：
+           append(slice,...) 
+		     修改切片末尾之后的底层数组元素值，并返回一个长度扩展后新的切片
+             而不会修改 当前切片长度 
+            append(sl,45,32) //即底层数组 [8]和[9] 位置元素被修改
+            fmt.Println(sl2[6]) // 45
+            fmt.Println(len(sl)) // 仍为 5
+           可通过赋值保存新的切片：
+            sl =append(s1,45,32) //不会修改 容量值	
+      b. 扩展切片容量：
+          当  append() 添加或修改的元素索引 大于或等于 其容量值时，则会生成新的底层数组
+		  新的数组 开始元素为 该切片的起始元素，包括切片的所有元素和扩展的元素
+		  且 长度大于 要存储的元素个数
+		  但不包括 原数组中 不在切片范围中的元素
+		  
+          而在原底层数组上的分片 不受影响，其底层数组仍为原数组
+          	 sl=append(sl,45,32，54) // 生成新的底层数组
+             fmt.Println(cap(sl)) //16 不一定 为 扩展后的长度
+             fmt.Println(sl2[6]) //9 原数组不受影响
+         其中 cap(sl) ==16 表示 新的数组 的长度为 16，切片在新数组的开始位置为0
+		 
+     c. 限制切片访问底层数组：
+         	[start:end:cap_index]
+           通过 切片索引 访问底层数组元素时，切片索引的范围 0 ~ (end -start -1)
+           但  对 切片sl1 再次切片时，则指定的容量值c_index 为 cap_index - start(包括该值)  
+           在底层数组中的索引为 sl1的start +start+cap,
+		   因此  cap_index  的值 不能 大于 sl1父切片容量或底层数组长度 - start -sl1的start
+		    否则 会报错： 超出 索引范围
+           	sl3 := sl[3:cap(sl)] // 即 sl[3:16:16]	 
+            sl4 := sl3[2:6:8]	//sl4 最大能够访问的范围： [5,13)		
+			
+	(5)复制：
+	   copy(des,src) 将 src 切片复制到 des 中， 会修改 des 切片，
+	     当 des 和 src 长度不同时，则只复制 最小长度 
+		 返回 复制的长度
+		 sliceA :=[]string{"a","b","c"}
+		 sliceB := []string{"A","B","C","D"}
+		 n := copy(sliceA,sliceB) // n 为 3
+		 
+三、字典：
+     1. 定义：
+        map[K]T
+        K 为键名的类型， T为键值的类型
+        var m  = map[string]bool {"Vim":true,"Emacs":true,"Notepad":false}	
+        var m = map[string]uint8{} // 空字典
+     2.字典类型为 引用类型，初始值为 nil
+        (1) len() 获取 字典的长度
+        (2)通过键名访问、修改、添加 键值：
+			 m["Emacs"] =false	
+			 m["vi"]=true	
+		   当 访问的键名不存在时，则 返回 键值类型 的默认值，
+		   如 m 键值 类型 bool 的默认值为 false, 因此
+			  g := m["gedit"] //false	
+		    但 这样无法 确定 是否存在该键名，还是该键名对应的键值为 false,
+			可通过 以下形式访问：
+			  g,ok :=m["gedit"]
+			 当 指定的键名不存在时，则第二个返回值 将为 false
+		(3)删除键名：
+		     delete(m,"vi")
+			 当指定的键名不存在时，则不会执行任何操作
+	 3.字典类型不是并发安全的，因此在并发访问时，需通过互斥量控制并发读写

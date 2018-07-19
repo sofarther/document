@@ -1,0 +1,131 @@
+1.安装 go:
+  (1)下载 linux版本 ： go1.10.3.linux-amd64.tar.gz
+      解压到 /usr/local/ 下
+  (2)配置 路径：
+      添加 bin 路径： 
+	    在 /etc/profile 中 添加到PATH变量 
+	    export PATH=$PATH:/usr/local/go/bin
+	  添加 GOPATH 路径：
+	    export GOPATH=/home/sofar/gopath
+  查看 ：
+    go  version 输出 go 版本
+	
+2. 查看本地doc 文档：
+    godoc -http=:6060
+  此时 可在浏览器中 通过 localhost:6060 查看 文档
+3. 当 导入的包 或定义的变量 没有使用时，则在编译时会报错，
+    可通过 _ 空标示符 
+	_ = x
+	import _ "runtime/cgo"
+4. 关键字：
+    程序声明：  import  package
+	程序视图声明和定义： chan const func interface map struct
+	                     type var
+	程序流程控制：  go select break continue case default switch
+	                defer else fallthrough for goto if range return
+5. 类型：
+    (1)
+	  a.基本类型：
+	    bool    1个字节  默认值为 false
+		bype   1个字节
+		rune    4个字节
+		int/uint  根据平台确定
+		int8/uint8   1个字节
+		int16/uint16  2个字节
+		int32/uint32  4个字节
+		int64/uint64  8个字节
+		float32     4个字节
+		float64    8个字节
+		complex64  8个字节 由 float32 实部 和float32 虚部联合表示
+		complex128  16个字节 由 float64 实部 和float64 虚部联合表示
+		string   -  
+	说明：
+	    I. string 值不可改变,
+		    两种表示格式： 
+			  原生字符串字面量： `` 引用，其中除` 字符都为 合法字符串
+			  解释型字符串字面量： "" 引用
+		II. rune 类型 专用于 存储Unicode 编码值
+		     字面量 由 单引号 引用，内部但不能出现 ' \n
+		    如 'a'
+			'\045' 三位八进制
+			'\x5f' 两位 十六进制
+			'\u4E00' 四位十六进制 UCS-2 表示法(将会废弃)
+			'\U000C' 四位十六进制  UCS-4 表示法
+		    
+	  b.复合数据类型：
+	     Array(数组) Struct(结构体) Function(函数) Interface(接口)
+         Slice(切片) Map(字典) Channel(通道) Pointer(指针)
+		 
+		 type Person struct{
+		   Name string
+		   Age uint8
+		   Address string
+		 }
+     (2)静态类型 和动态类型：
+	    大部分 变量都是 在 定义时声明其类型，即静态类型
+		接口类型 则可以在运行时 与变量绑定 实现了该接口的实际类型值 即动态类型
+	 (3)潜在类型：
+	     每个类型都有一个 潜在类型，
+		 若该类型为 预定义类型(基本类型)，或由类型字面量构造的复合类型，则
+		  该类型的潜在类型为 其自身
+		 如 string 类型 的潜在类型为 string 
+		    Person 的潜在类型为 Person
+		 type MyString string
+          则 MyString 的潜在类型为 为 string
+         一个类型的潜在类型具有可传递性：
+         type iString MyString
+         则 iString 的潜在类型为 string
+         type MyStrings [3]string
+         [3]string 既不是 预定义类型,也不是由类型字面量构造的复合类型
+         而是 一个 string 数组类型，
+		 但由于 [3]string 的潜在类型为 string
+		 因此 MyStrings 的潜在类型为 string	
+	即：
+	  一个数组类型的潜在类型决定 该类型变量中可存放的类型元素
+6.表达式：
+  (1)基本表达式：
+      a.切片： [:]
+	  b.类型断言：
+	     x.(T)
+		
+		 I.若 T 不是一个接口类型时，则 x.(T) 判断 x 的动态类型(值的实际类型)是否与 T一致
+		   即 T 是否为 x 的实际类型 的实现类型，
+		  由于只有interface 类型 可以被其他类型实现，因此
+		   x 必须为 interface 类型
+		 
+		  判断 num 是否为 int 类型：
+		  interface{}(num).(int)
+		  说明：interface{}(num) 将num 转为 一个interface{} 类型，
+		        其中 interface{} 表示空接口类型
+		 II.若 T 为一个接口类型，则 x.(T) 判断 x 的动态类型 是否 实现了 T 接口
+	  
+	    v,ok := x.(T)
+		 表示 当 x.(T) 断言成功时，则v 将赋值为 x转为 T 类型的结果，ok赋值为true
+		   否则 v 赋值为T类型的 领值，而ok 赋值为false
+		   
+  (2)索引表达式：
+       支持 数组类型、字符串、切片、字典，
+	   其中 
+	   a.对于 数组类型，还支持 数组指针类型(与数组类型处理相同)，对于其他类型则不支持其相应的指针类型
+	   b.除字典外，其他类型中，索引值 必须为 int 类型 大于等于0，且小于其长度
+	   c. 对于字符串，[]索引表达式 返回的是一个 bype 类型，而不是string 类型，
+	       字符串为常量，因此不能对 字符串的索引位置 进行赋值
+
+7. new make :
+    (1) new(T)
+        为 T类型 分配并清零一块内存，并返回 分配的地址
+          会将分配的内存 的值 初始化为 该类型 默认值	
+          主要用于创建 值类型，而不应用于 引用类型
+         pArr := new([5]int)
+    (2) make(T,len,cap)
+          只用于 创建 切片 字典 通道类型
+		  当没有 指定 cap 时，则 容量 和长度相同
+		  返回 指定的类型 值，而不是 指定类型指针类型
+         pSlice := make([]string,10,15)
+         pSlice[2]="abc"
+         len(pSlice) //10
+         cap(pSlice) //15
+		通道类型 只能通过 make() 创建
+		m := make(chan int,10)
+        		 
+		 

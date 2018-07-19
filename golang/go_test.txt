@@ -1,0 +1,81 @@
+
+1.测试文件编写的公共原则：
+  
+  (1)必须import testing这个包
+  (2)必须 与被测试 的源码文件位于同一个包，
+      即 在 声明 package 语句时，与 源码文件的 包名相同，且所位于同级目录
+ 
+2.功能测试：
+   (1)原则：
+       a.文件名必须是_test.go结尾的(文件名必须是*_test.go的类型，*代表要测试的文件名），
+        这样在执行go test的时候才会执行到相应的代码
+       b.所有的测试用例函数必须是Test开头（函数名必须以Test开头如：TestXxx或Test_xxx）
+             func TestXxx (t *testing.T),Xxx部分可以为任意的字母数字的组合，
+	           但是首字母不能是小写字母[a-z]，例如Testintdiv是错误的函数名。
+          测试函数TestXxx()的参数 的类型是testing.T，这样可以使用该类型来记录错误或者是测试状态
+          测试用例会按照源代码中写的顺序依次执行
+	   c.其他源码文件中的程序实体,是以 函数为 单位进行测试的
+	
+	(2)测试信息记录：
+	  *testing.T 类型 包含输出 测试信息的方法
+	   a. 常规记录：
+	       Log() Logf(,)
+		  输出 信息中 包含 当前测试文件名 和输出的行号信息等
+	   b. 错误记录：
+	       Error() Errorf(,)
+		    等同于 先 调用 Log() 后调用 Fail()
+	   c. 致命错误记录：
+	       Fatal() Fatalf(,)
+		   当测试无法继续的 错误，等同于 先调用 Log() 后调用 FailNow()
+		d.失败标记：
+		    Fail() : 标记当前测试函数失败，但不会终止当前测试
+			FailNow() : 标记当前测试函数失败,并立即终止测试，
+			          只能 在 运行测试函数的Goroutine 中调用，
+                      而不能 在 测试代码中 创建的 Goroutine 中调用
+            Failed() 返回 bool, 判断是否测试失败
+       e. 忽略测试：
+           SkipNow()标记当前测试函数为已忽略并立即终止对该函数的执行，
+                     从而 转而 去执行其他测试函数,
+					 与FailNow() 类似， 只能 在 运行测试函数的Goroutine 中调用
+           Skip() Skipf(,)
+                  相当于 先调用 Log() 后调用 SkipNow()		
+           Skipped() 判断是否已忽略
+       f. Parallel() 使 当前测试函数 标记为 可并行运行
+    (3)执行 测试：
+         go test  
+        a. 可以 在 与测试包名 同名的目录下 直接运行 该命令
+            将 自动运行 *_test.go 文件
+        b. 也可以 在 其他目录下 指定  测试包名：
+           go test  set
+        c. 参数：
+            -v  输出 打印的记录信息
+            -run=Pattern  默认下会执行 所有测试函数，
+                       可通过该参数 指定一个正则表达式，只运行匹配的测试函数
+                        () 需使用 \( \)
+                        不支持 前瞻 ?= ?! 
+            -timeout 指定 测试最长时间
+             参数 格式 ：
+                   ns 纳秒  us 微秒   ms毫秒	
+                    s 秒   m 分  h 小时
+                1h20s 1小时 20秒					
+3. 基准测试：
+      Benchmark Test, 类似于 性能测试
+	  (1)原则：
+ 	        a.文件名 以文件*_b_test.go 或 _test.go 结尾
+	         b.测试函数名必须以 Benchmark 开头，
+			    参数类型 为 *testing.B ,
+			c. 以 函数为 单位测试
+	  (2)方法：
+	       除了 与 *testing.T 相同的方法，还拥有额外的方法：
+		     a. 计时器：
+			     StartTimer() 开始计时
+				 StopTimer() 停止计时
+				 ResetTimer()重置计时器
+			b. 内存分配统计：
+			     ReportAllocs() 判断是否使用了 -benchmen 标示
+				   -benchmen 表示输出 基准测试 的内存统计信息
+      (3)默认下 go  test  不会运行 基准测试，
+           需通过 -bench regexp 其中 regexp 为 正则表达式，对匹配的函数进行基准测试
+		        -bench . 或 -bench=. 则表示全部函数进行基准测试
+				
+                 		   
